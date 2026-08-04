@@ -33,6 +33,7 @@ export const courses = pgTable("courses", {
   status: contentStatusEnum("status").notNull().default("draft"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
 });
 
 export const classes = pgTable(
@@ -58,6 +59,7 @@ export const classes = pgTable(
     currentAssignmentVersionId: uuid("current_assignment_version_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
   },
   (t) => [unique("classes_course_id_slug_unique").on(t.courseId, t.slug)],
 );

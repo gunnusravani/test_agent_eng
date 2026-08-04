@@ -144,6 +144,8 @@ export const attemptHistoryRowSchema = z.object({
   status: z.enum(["success", "error"]),
   weightedScore: z.number().nullable(),
   grade: assignmentEvaluationSchema.shape.overallGrade.nullable(),
+  /** Feedback summary on success, the failure message on error; null if neither is available. */
+  description: z.string().nullable(),
   /** ISO timestamp — render with toLocaleString() client-side so it displays in the viewer's local time zone. */
   createdAt: z.string(),
 });
@@ -181,3 +183,219 @@ export const evaluateResponseSchema = z.object({
 });
 
 export type EvaluateResponse = z.infer<typeof evaluateResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Admin
+// ---------------------------------------------------------------------------
+
+export const contentStatusSchema = z.enum(["draft", "published", "archived"]);
+
+export const rubricWeightsSchema = z
+  .object({
+    completeness: z.number().int().min(0).max(100),
+    correctness: z.number().int().min(0).max(100),
+    quality: z.number().int().min(0).max(100),
+    novelty: z.number().int().min(0).max(100),
+    understanding: z.number().int().min(0).max(100),
+  })
+  .refine((w) => w.completeness + w.correctness + w.quality + w.novelty + w.understanding === 100, {
+    message: "Rubric weights must sum to 100.",
+  });
+
+export type RubricWeights = z.infer<typeof rubricWeightsSchema>;
+
+export const adminCreateCourseSchema = z.object({
+  slug: z
+    .string()
+    .min(1, "Slug is required")
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug must be lowercase, alphanumeric, hyphen-separated"),
+  title: z.string().min(1, "Title is required"),
+  description: z.string().optional(),
+});
+
+export type AdminCreateCourseInput = z.infer<typeof adminCreateCourseSchema>;
+
+export const adminUpdateCourseSchema = z.object({
+  slug: adminCreateCourseSchema.shape.slug.optional(),
+  title: z.string().min(1).optional(),
+  description: z.string().nullable().optional(),
+  status: contentStatusSchema.optional(),
+});
+
+export type AdminUpdateCourseInput = z.infer<typeof adminUpdateCourseSchema>;
+
+export const adminCreateClassSchema = z.object({
+  courseId: z.string().min(1, "courseId is required"),
+  slug: z
+    .string()
+    .min(1, "Slug is required")
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug must be lowercase, alphanumeric, hyphen-separated"),
+  title: z.string().min(1, "Title is required"),
+  orderIndex: z.number().int().min(0),
+  expectedForkOf: z.string().optional(),
+});
+
+export type AdminCreateClassInput = z.infer<typeof adminCreateClassSchema>;
+
+export const adminUpdateClassSchema = z.object({
+  slug: adminCreateClassSchema.shape.slug.optional(),
+  title: z.string().min(1).optional(),
+  orderIndex: z.number().int().min(0).optional(),
+  expectedForkOf: z.string().nullable().optional(),
+  status: contentStatusSchema.optional(),
+});
+
+export type AdminUpdateClassInput = z.infer<typeof adminUpdateClassSchema>;
+
+const assignmentVersionFieldsSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  objective: z.string().min(1, "Objective is required"),
+  expectedDeliverables: z.array(z.string().min(1)).min(1, "At least one expected deliverable is required"),
+  expectedForkOf: z.string().optional(),
+  rubricWeights: rubricWeightsSchema,
+});
+
+export const adminCreateAssignmentVersionSchema = assignmentVersionFieldsSchema.extend({
+  classId: z.string().min(1, "classId is required"),
+});
+
+export type AdminCreateAssignmentVersionInput = z.infer<typeof adminCreateAssignmentVersionSchema>;
+
+export const adminEditAssignmentVersionSchema = assignmentVersionFieldsSchema;
+
+export type AdminEditAssignmentVersionInput = z.infer<typeof adminEditAssignmentVersionSchema>;
+
+export const adminCourseSchema = z.object({
+  id: z.string(),
+  slug: z.string(),
+  title: z.string(),
+  description: z.string().nullable(),
+  status: contentStatusSchema,
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  archivedAt: z.string().nullable(),
+});
+
+export type AdminCourseDto = z.infer<typeof adminCourseSchema>;
+
+export const adminClassSchema = z.object({
+  id: z.string(),
+  courseId: z.string(),
+  slug: z.string(),
+  title: z.string(),
+  orderIndex: z.number(),
+  status: contentStatusSchema,
+  expectedForkOf: z.string().nullable(),
+  currentAssignmentVersionId: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  archivedAt: z.string().nullable(),
+});
+
+export type AdminClassDto = z.infer<typeof adminClassSchema>;
+
+export const adminAssignmentVersionSchema = z.object({
+  id: z.string(),
+  classId: z.string(),
+  versionNumber: z.number(),
+  title: z.string(),
+  objective: z.string(),
+  expectedDeliverables: z.array(z.string()),
+  expectedForkOf: z.string().nullable(),
+  rubricWeights: z.object({
+    completeness: z.number(),
+    correctness: z.number(),
+    quality: z.number(),
+    novelty: z.number(),
+    understanding: z.number(),
+  }),
+  createdAt: z.string(),
+});
+
+export type AdminAssignmentVersionDto = z.infer<typeof adminAssignmentVersionSchema>;
+
+/** One row per (student, class) they've submitted to — the grid the admin students page is built from. */
+export const adminStudentClassSummarySchema = z.object({
+  studentId: z.string(),
+  githubUsername: z.string(),
+  courseId: z.string(),
+  courseTitle: z.string(),
+  classId: z.string(),
+  classSlug: z.string(),
+  classTitle: z.string(),
+  maxScore: z.number().nullable(),
+  maxGrade: assignmentEvaluationSchema.shape.overallGrade.nullable(),
+  latestScore: z.number().nullable(),
+  latestGrade: assignmentEvaluationSchema.shape.overallGrade.nullable(),
+  attempts: z.number(),
+  lastAttemptAt: z.string(),
+});
+
+export type AdminStudentClassSummary = z.infer<typeof adminStudentClassSummarySchema>;
+
+// ---------------------------------------------------------------------------
+// Admin analytics dashboard
+// ---------------------------------------------------------------------------
+
+export const dashboardKpisSchema = z.object({
+  totalStudents: z.number(),
+  totalSubmissions: z.number(),
+  passPercentage: z.number(),
+  avgAttemptsPerClass: z.number(),
+});
+
+export const gradeDistributionBucketSchema = z.object({
+  grade: assignmentEvaluationSchema.shape.overallGrade,
+  count: z.number(),
+});
+
+export const courseAggregateSchema = z.object({
+  courseId: z.string(),
+  courseTitle: z.string(),
+  avgScore: z.number().nullable(),
+  attempts: z.number(),
+});
+
+export const submissionsByCourseSchema = z.object({
+  courseId: z.string(),
+  courseTitle: z.string(),
+  count: z.number(),
+});
+
+export const attemptsByDaySchema = z.object({
+  date: z.string(),
+  count: z.number(),
+});
+
+export const classPerformanceRowSchema = z.object({
+  classId: z.string(),
+  classSlug: z.string(),
+  classTitle: z.string(),
+  courseTitle: z.string(),
+  attempts: z.number(),
+  passRate: z.number(),
+  avgScore: z.number().nullable(),
+});
+
+export const recentSubmissionSchema = z.object({
+  attemptId: z.string(),
+  githubUsername: z.string(),
+  courseTitle: z.string(),
+  classTitle: z.string(),
+  status: z.enum(["success", "error"]),
+  grade: assignmentEvaluationSchema.shape.overallGrade.nullable(),
+  weightedScore: z.number().nullable(),
+  createdAt: z.string(),
+});
+
+export const dashboardAnalyticsSchema = z.object({
+  kpis: dashboardKpisSchema,
+  gradeDistribution: z.array(gradeDistributionBucketSchema),
+  avgScorePerCourse: z.array(courseAggregateSchema),
+  submissionsByCourse: z.array(submissionsByCourseSchema),
+  attemptsOverTime: z.array(attemptsByDaySchema),
+  classPerformance: z.array(classPerformanceRowSchema),
+  recentSubmissions: z.array(recentSubmissionSchema),
+});
+
+export type DashboardAnalytics = z.infer<typeof dashboardAnalyticsSchema>;

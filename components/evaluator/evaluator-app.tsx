@@ -120,9 +120,9 @@ export function EvaluatorApp() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-10 sm:px-6">
+    <div id="grade-form" className="mx-auto flex w-full max-w-5xl scroll-mt-20 flex-col gap-6 px-4 py-10 sm:px-6">
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold">Assignment Repository Evaluator</h1>
+        <h2 className="text-2xl font-semibold">Submit Your Repository</h2>
         <p className="text-muted-foreground">
           Choose a course and class, then submit your GitHub repository for an AI-generated evaluation.
         </p>
@@ -180,7 +180,7 @@ export function EvaluatorApp() {
 
       <Separator />
 
-      <div className="space-y-3">
+      <div id="check-results" className="scroll-mt-20 space-y-3">
         <h2 className="text-lg font-semibold">Check Your Results</h2>
         <p className="text-sm text-muted-foreground">Look up your grading history by GitHub username, any time.</p>
         <ResultsLookupForm onLookup={handleLookup} isLoading={lookupLoading} />

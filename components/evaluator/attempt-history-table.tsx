@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { gradeColor } from "@/lib/grades";
 import type { AttemptHistoryRow } from "@/types/schemas";
 
@@ -22,7 +23,8 @@ export function AttemptHistoryTable({ rows }: { rows: AttemptHistoryRow[] }) {
                   <th className="py-1.5 pr-4 font-medium">Time</th>
                   <th className="py-1.5 pr-4 font-medium">Class</th>
                   <th className="py-1.5 pr-4 font-medium">Status</th>
-                  <th className="py-1.5 font-medium">Grade</th>
+                  <th className="py-1.5 pr-4 font-medium">Grade</th>
+                  <th className="py-1.5 font-medium">Result Description</th>
                 </tr>
               </thead>
               <tbody>
@@ -38,7 +40,23 @@ export function AttemptHistoryTable({ rows }: { rows: AttemptHistoryRow[] }) {
                         <Badge variant="outline">Success</Badge>
                       )}
                     </td>
-                    <td className={`py-1.5 font-medium ${row.grade ? gradeColor(row.grade) : ""}`}>{row.grade ?? "—"}</td>
+                    <td className={`py-1.5 pr-4 font-medium ${row.grade ? gradeColor(row.grade) : ""}`}>{row.grade ?? "—"}</td>
+                    <td className="max-w-56 py-1.5">
+                      {row.description ? (
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <span className="block cursor-default truncate text-muted-foreground">{row.description}</span>
+                            }
+                          />
+                          <TooltipContent side="top" className="max-w-sm text-pretty whitespace-pre-wrap">
+                            {row.description}
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

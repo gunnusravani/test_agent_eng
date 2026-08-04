@@ -28,6 +28,13 @@ export function scoreToGrade(weightedAverage: number): AssignmentEvaluation["ove
   return match?.grade ?? "F";
 }
 
+/** C- and above (matches GRADE_THRESHOLDS) counts as passing for analytics; D/F and errored attempts don't. */
+export const PASSING_SCORE_THRESHOLD = 4.3;
+
+export function isPassingScore(weightedScore: number | null): boolean {
+  return weightedScore != null && weightedScore >= PASSING_SCORE_THRESHOLD;
+}
+
 export function weightedAverage(
   scores: ScoreDimensions,
   weights: Record<keyof ScoreDimensions, number> = DIMENSION_WEIGHTS,
