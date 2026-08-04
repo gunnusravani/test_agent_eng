@@ -1,13 +1,55 @@
 import { NextResponse } from "next/server";
-import { ALL_CLASS_IDS, assignments } from "@/config/assignments";
 import { GitHubError } from "@/lib/errors";
-import { evaluateRepository } from "@/lib/evaluator";
-import { fetchRepository, findMyWorkPath, findReadme, getRepoTree, listClassDirectories, parseGitHubUrl } from "@/lib/github";
-import { gatherAllClasses } from "@/lib/parser";
-import { evaluateRequestSchema, type ForkCheck, type ValidationResult } from "@/types/schemas";
+import { evaluateAssignment, MODEL_NAME } from "@/lib/evaluator";
+import { fetchRepository, findMyWorkPath, findReadme, getRepoTree, hasClassDirectory, parseGitHubUrl, resolveBranchSha } from "@/lib/github";
+import { gatherClassFiles } from "@/lib/parser";
+import { scoreToGrade, weightedAverage } from "@/lib/grades";
+import { PROMPT_VERSION } from "@/lib/prompts";
+import {
+  findExistingAttempt,
+  getAttemptHistoryForStudent,
+  getClassForEvaluation,
+  getOrCreateStudent,
+  getResultsForStudent,
+  insertAttempt,
+} from "@/lib/db/queries";
+import type { Attempt } from "@/lib/db/schema";
+import { evaluateRequestSchema, type AssignmentEvaluationResult, type ForkCheck, type ValidationResult } from "@/types/schemas";
+import type { AssignmentConfig } from "@/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
+
+/**
+ * Reconstructs the API response shape for a resubmission that matched an existing attempt
+ * exactly (same commit, class, assignment version, prompt version, model — see
+ * findExistingAttempt). The LLM's own raw overallGrade isn't persisted on attempts (the app
+ * always derives the canonical grade from weightedScore, see lib/grades.ts), so it's
+ * recomputed the same way here; nothing downstream reads this field directly.
+ */
+function attemptToEvaluationResult(attempt: Attempt, classSlug: string): AssignmentEvaluationResult {
+  if (attempt.status === "error") {
+    return { status: "error", classId: classSlug, message: attempt.errorMessage ?? "Unknown error" };
+  }
+  return {
+    status: "success",
+    classId: classSlug,
+    data: {
+      scores: {
+        completeness: attempt.completeness!,
+        correctness: attempt.correctness!,
+        quality: attempt.quality!,
+        novelty: attempt.novelty!,
+        understanding: attempt.understanding!,
+      },
+      overallGrade: scoreToGrade(attempt.weightedScore ?? 0),
+      confidence: attempt.confidence!,
+      feedback: attempt.feedbackJson!,
+    },
+    evaluatedAt: attempt.createdAt.toISOString(),
+    modelUsed: attempt.modelName,
+  };
+}
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -21,8 +63,15 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid request." }, { status: 400 });
   }
+  const { courseSlug, classSlug, repoUrl } = parsed.data;
 
-  const parsedUrl = parseGitHubUrl(parsed.data.url);
+  const lookup = await getClassForEvaluation(courseSlug, classSlug);
+  if (!lookup) {
+    return NextResponse.json({ error: "This course or class is not available." }, { status: 404 });
+  }
+  const { classRow, assignmentVersion } = lookup;
+
+  const parsedUrl = parseGitHubUrl(repoUrl);
   if (!parsedUrl) {
     return NextResponse.json({ error: "Must be a github.com repository URL, e.g. https://github.com/owner/repo" }, { status: 400 });
   }
@@ -30,59 +79,111 @@ export async function POST(request: Request) {
   try {
     const { owner, repo } = parsedUrl;
     const repoMetadata = await fetchRepository(owner, repo);
-    const tree = await getRepoTree(owner, repo, repoMetadata.defaultBranch);
+    const commitSha = await resolveBranchSha(owner, repo, repoMetadata.defaultBranch);
+    const tree = await getRepoTree(owner, repo, commitSha);
 
     const hasReadme = findReadme(tree);
     const myWorkPath = findMyWorkPath(tree);
     const hasMyWork = Boolean(myWorkPath);
-    const presentClasses = new Set(myWorkPath ? listClassDirectories(tree, myWorkPath) : []);
+    const hasClassFolder = myWorkPath ? hasClassDirectory(tree, myWorkPath, classSlug) : false;
 
     const errors: string[] = [];
     if (!hasMyWork) errors.push("Missing my-work directory.");
-    const missingClasses = ALL_CLASS_IDS.filter((id) => !presentClasses.has(id));
-    if (hasMyWork && missingClasses.length > 0) {
-      errors.push(`Missing class folders: ${missingClasses.join(", ")}`);
-    }
+    if (hasMyWork && !hasClassFolder) errors.push(`Missing class folder: my-work/${classSlug}.`);
 
-    const expectedForkOf = assignments["class-01"]?.expectedForkOf;
-    const forkCheck: ForkCheck | null = expectedForkOf
+    const forkCheck: ForkCheck | null = classRow.expectedForkOf
       ? {
-          expectedUpstream: expectedForkOf,
+          expectedUpstream: classRow.expectedForkOf,
           actualUpstream: repoMetadata.parentFullName,
-          ok: repoMetadata.isFork && repoMetadata.parentFullName?.toLowerCase() === expectedForkOf.toLowerCase(),
+          ok: repoMetadata.isFork && repoMetadata.parentFullName?.toLowerCase() === classRow.expectedForkOf.toLowerCase(),
         }
       : null;
 
     const validation: ValidationResult = {
-      valid: hasMyWork && missingClasses.length === 0,
+      valid: hasMyWork && hasClassFolder,
       owner,
       repo,
       htmlUrl: repoMetadata.htmlUrl,
       hasReadme,
       hasMyWork,
-      classes: ALL_CLASS_IDS.map((classId) => ({ classId, present: presentClasses.has(classId) })),
-      errors,
+      hasClassFolder,
       isFork: repoMetadata.isFork,
       parentFullName: repoMetadata.parentFullName,
       forkCheck,
+      errors,
     };
 
     if (!validation.valid) {
       return NextResponse.json({ validation });
     }
 
-    const gatheredClasses = await gatherAllClasses({ owner, repo, tree, classIds: ALL_CLASS_IDS, myWorkPath: myWorkPath! });
+    const student = await getOrCreateStudent(owner);
 
-    const report = await evaluateRepository({
-      owner,
-      repo,
-      htmlUrl: repoMetadata.htmlUrl,
-      validation,
-      gatheredClasses,
-      assignments,
+    const existingAttempt = await findExistingAttempt({
+      studentId: student.id,
+      classId: classRow.id,
+      commitSha,
+      assignmentVersionId: assignmentVersion.id,
+      promptVersion: PROMPT_VERSION,
+      modelName: MODEL_NAME,
     });
 
-    return NextResponse.json({ validation, report });
+    if (existingAttempt) {
+      const resultsTable = await getResultsForStudent(owner, courseSlug);
+      const attemptHistory = await getAttemptHistoryForStudent(owner, courseSlug);
+      return NextResponse.json({
+        validation,
+        evaluation: attemptToEvaluationResult(existingAttempt, classSlug),
+        weightedScore: existingAttempt.weightedScore,
+        resultsTable,
+        attemptHistory,
+        cached: true,
+      });
+    }
+
+    const gathered = await gatherClassFiles({ owner, repo, tree, classId: classSlug, myWorkPath: myWorkPath! });
+
+    const assignmentConfig: AssignmentConfig = {
+      title: assignmentVersion.title,
+      objective: assignmentVersion.objective,
+      expectedDeliverables: assignmentVersion.expectedDeliverables,
+      expectedForkOf: classRow.expectedForkOf ?? undefined,
+    };
+
+    const evaluation = await evaluateAssignment({ assignment: assignmentConfig, gathered });
+    const weightedScore = evaluation.status === "success" ? weightedAverage(evaluation.data.scores, assignmentVersion.rubricWeights) : null;
+
+    await insertAttempt({
+      studentId: student.id,
+      classId: classRow.id,
+      assignmentVersionId: assignmentVersion.id,
+      repoUrl,
+      commitSha,
+      status: evaluation.status,
+      completeness: evaluation.status === "success" ? evaluation.data.scores.completeness : null,
+      correctness: evaluation.status === "success" ? evaluation.data.scores.correctness : null,
+      quality: evaluation.status === "success" ? evaluation.data.scores.quality : null,
+      novelty: evaluation.status === "success" ? evaluation.data.scores.novelty : null,
+      understanding: evaluation.status === "success" ? evaluation.data.scores.understanding : null,
+      weightedScore,
+      confidence: evaluation.status === "success" ? evaluation.data.confidence : null,
+      feedbackJson: evaluation.status === "success" ? evaluation.data.feedback : undefined,
+      errorMessage: evaluation.status === "error" ? evaluation.message : null,
+      promptVersion: PROMPT_VERSION,
+      modelName: MODEL_NAME,
+    });
+
+    const resultsTable = await getResultsForStudent(owner, courseSlug);
+    const attemptHistory = await getAttemptHistoryForStudent(owner, courseSlug);
+
+    return NextResponse.json({
+      validation,
+      evaluation,
+      weightedScore,
+      files: { filesIncluded: gathered.filesIncluded, filesOmitted: gathered.filesOmitted },
+      resultsTable,
+      attemptHistory,
+    });
   } catch (error) {
     if (error instanceof GitHubError) {
       const status = error.code === "RATE_LIMITED" ? 429 : error.code === "NOT_FOUND" ? 404 : 400;

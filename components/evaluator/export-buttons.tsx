@@ -2,24 +2,23 @@
 
 import { Button } from "@/components/ui/button";
 import { DownloadIcon } from "lucide-react";
-import { buildJsonReport, buildMarkdownReport, downloadTextFile } from "@/lib/export";
-import type { RepositoryReport } from "@/types/schemas";
+import { buildJsonReport, buildMarkdownReport, downloadTextFile, type ExportContext } from "@/lib/export";
 
-export function ExportButtons({ report }: { report: RepositoryReport }) {
-  const filenameBase = `${report.repository.owner}-${report.repository.repo}-evaluation`;
+export function ExportButtons({ context }: { context: ExportContext }) {
+  const filenameBase = `${context.owner}-${context.repo}-${context.classSlug}-evaluation`;
 
   return (
     <div className="flex flex-wrap gap-2">
       <Button
         variant="outline"
-        onClick={() => downloadTextFile(`${filenameBase}.json`, buildJsonReport(report), "application/json")}
+        onClick={() => downloadTextFile(`${filenameBase}.json`, buildJsonReport(context), "application/json")}
       >
         <DownloadIcon />
         Download JSON
       </Button>
       <Button
         variant="outline"
-        onClick={() => downloadTextFile(`${filenameBase}.md`, buildMarkdownReport(report), "text/markdown")}
+        onClick={() => downloadTextFile(`${filenameBase}.md`, buildMarkdownReport(context), "text/markdown")}
       >
         <DownloadIcon />
         Download Markdown Report

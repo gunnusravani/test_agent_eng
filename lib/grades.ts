@@ -28,26 +28,14 @@ export function scoreToGrade(weightedAverage: number): AssignmentEvaluation["ove
   return match?.grade ?? "F";
 }
 
-export function weightedAverage(scores: ScoreDimensions): number {
-  const keys = Object.keys(DIMENSION_WEIGHTS) as Array<keyof ScoreDimensions>;
-  const total = keys.reduce((sum, key) => sum + scores[key] * DIMENSION_WEIGHTS[key], 0);
-  const weightSum = keys.reduce((sum, key) => sum + DIMENSION_WEIGHTS[key], 0);
+export function weightedAverage(
+  scores: ScoreDimensions,
+  weights: Record<keyof ScoreDimensions, number> = DIMENSION_WEIGHTS,
+): number {
+  const keys = Object.keys(weights) as Array<keyof ScoreDimensions>;
+  const total = keys.reduce((sum, key) => sum + scores[key] * weights[key], 0);
+  const weightSum = keys.reduce((sum, key) => sum + weights[key], 0);
   return total / weightSum;
-}
-
-export function averageScores(allScores: ScoreDimensions[]): ScoreDimensions {
-  if (allScores.length === 0) {
-    return { completeness: 0, correctness: 0, quality: 0, novelty: 0, understanding: 0 };
-  }
-  const keys = Object.keys(DIMENSION_WEIGHTS) as Array<keyof ScoreDimensions>;
-  const sums = keys.reduce(
-    (acc, key) => {
-      acc[key] = allScores.reduce((sum, s) => sum + s[key], 0) / allScores.length;
-      return acc;
-    },
-    {} as ScoreDimensions,
-  );
-  return sums;
 }
 
 /** Maps a 0-10 score to a 0-100 percentage for progress bars. */

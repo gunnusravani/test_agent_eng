@@ -158,14 +158,3 @@ export async function gatherClassFiles(params: {
 
   return { classId, present: true, hasReadme, filesIncluded, filesOmitted, totalCharsUsed };
 }
-
-export async function gatherAllClasses(params: {
-  owner: string;
-  repo: string;
-  tree: GitTreeItem[];
-  classIds: string[];
-  myWorkPath: string;
-}): Promise<GatheredClass[]> {
-  const { owner, repo, tree, classIds, myWorkPath } = params;
-  return Promise.all(classIds.map((classId) => gatherClassFiles({ owner, repo, tree, classId, myWorkPath })));
-}

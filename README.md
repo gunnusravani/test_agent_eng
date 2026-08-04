@@ -45,7 +45,7 @@ Edit `.env.local`:
 | Variable | Required | Notes |
 |---|---|---|
 | `OPENAI_API_KEY` | Yes | Used to call OpenAI for evaluation. |
-| `OPENAI_MODEL` | No | Defaults to `gpt-4o`. |
+| `OPENAI_MODEL` | No | Defaults to `gpt-4o-mini`. |
 | `GITHUB_TOKEN` | No, but recommended | Raises the GitHub API rate limit from 60 to 5,000 requests/hour. Create a fine-grained token with "Public Repositories (read-only)" access at https://github.com/settings/tokens. |
 
 Then run the dev server:

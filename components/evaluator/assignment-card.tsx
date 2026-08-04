@@ -3,33 +3,30 @@ import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { ScoreBar } from "@/components/evaluator/score-bar";
 import { FilePreviewDialog } from "@/components/evaluator/file-preview-dialog";
-import { gradeColor } from "@/lib/grades";
-import { getAssignment } from "@/config/assignments";
+import { gradeColor, scoreToGrade } from "@/lib/grades";
 import type { AssignmentEvaluationResult, ClassFilesDto } from "@/types/schemas";
 
 export function AssignmentCard({
   evaluation,
+  weightedScore,
+  classTitle,
   files,
 }: {
   evaluation: AssignmentEvaluationResult;
+  weightedScore: number | null;
+  classTitle: string;
   files?: ClassFilesDto;
 }) {
-  const assignment = getAssignment(evaluation.classId);
-
   return (
     <Card>
       <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
         <div>
-          <CardTitle>{evaluation.classId}</CardTitle>
-          {assignment && <p className="mt-0.5 text-sm text-muted-foreground">{assignment.title}</p>}
+          <CardTitle>{classTitle}</CardTitle>
+          <p className="mt-0.5 font-mono text-sm text-muted-foreground">{evaluation.classId}</p>
         </div>
-        <StatusBadge evaluation={evaluation} />
+        <StatusBadge evaluation={evaluation} weightedScore={weightedScore} />
       </CardHeader>
       <CardContent className="space-y-4">
-        {evaluation.status === "not_submitted" && (
-          <p className="text-sm text-muted-foreground">No submission found for this class.</p>
-        )}
-
         {evaluation.status === "error" && <p className="text-sm text-destructive">{evaluation.message}</p>}
 
         {evaluation.status === "success" && (
@@ -94,18 +91,21 @@ export function AssignmentCard({
   );
 }
 
-function StatusBadge({ evaluation }: { evaluation: AssignmentEvaluationResult }) {
-  if (evaluation.status === "not_submitted") {
-    return <Badge variant="outline">Not Submitted</Badge>;
-  }
+function StatusBadge({
+  evaluation,
+  weightedScore,
+}: {
+  evaluation: AssignmentEvaluationResult;
+  weightedScore: number | null;
+}) {
   if (evaluation.status === "error") {
     return <Badge variant="destructive">Error</Badge>;
   }
-  return (
-    <span className={`text-2xl font-semibold ${gradeColor(evaluation.data.overallGrade)}`}>
-      {evaluation.data.overallGrade}
-    </span>
-  );
+  if (weightedScore == null) {
+    return <Badge variant="outline">Unscored</Badge>;
+  }
+  const grade = scoreToGrade(weightedScore);
+  return <span className={`text-2xl font-semibold ${gradeColor(grade)}`}>{grade}</span>;
 }
 
 function FeedbackList({ title, items }: { title: string; items: string[] }) {

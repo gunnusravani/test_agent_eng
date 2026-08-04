@@ -2,30 +2,64 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { CourseClassPicker } from "@/components/evaluator/course-class-picker";
 import { RepoUrlForm } from "@/components/evaluator/repo-url-form";
 import { ValidationChecklist } from "@/components/evaluator/validation-checklist";
 import { Dashboard } from "@/components/evaluator/dashboard";
 import { LoadingSkeleton } from "@/components/evaluator/loading-skeleton";
+import { ResultsLookupForm } from "@/components/evaluator/results-lookup-form";
+import { ResultsTable } from "@/components/evaluator/results-table";
+import { AttemptHistoryTable } from "@/components/evaluator/attempt-history-table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import type { EvaluateResponse, RepositoryReport, ValidationResult } from "@/types/schemas";
+import { Separator } from "@/components/ui/separator";
+import type {
+  AssignmentEvaluationResult,
+  AttemptHistoryRow,
+  ClassFilesDto,
+  EvaluateResponse,
+  ResultsRow,
+  ValidationResult,
+} from "@/types/schemas";
 
 type EvaluatorState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "invalid"; validation: ValidationResult }
-  | { status: "success"; validation: ValidationResult; report: RepositoryReport }
+  | {
+      status: "success";
+      validation: ValidationResult;
+      evaluation: AssignmentEvaluationResult;
+      weightedScore: number | null;
+      files?: ClassFilesDto;
+      resultsTable: ResultsRow[];
+      attemptHistory: AttemptHistoryRow[];
+      classTitle: string;
+      cached: boolean;
+    }
   | { status: "error"; message: string };
 
 export function EvaluatorApp() {
+  const [courseSlug, setCourseSlug] = useState<string | null>(null);
+  const [classSlug, setClassSlug] = useState<string | null>(null);
+  const [classTitle, setClassTitle] = useState("");
   const [state, setState] = useState<EvaluatorState>({ status: "idle" });
 
-  async function handleSubmit(url: string) {
+  const [lookupResults, setLookupResults] = useState<ResultsRow[] | null>(null);
+  const [lookupHistory, setLookupHistory] = useState<AttemptHistoryRow[] | null>(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
+
+  async function handleSubmit(repoUrl: string) {
+    if (!courseSlug || !classSlug) {
+      toast.error("Choose a course and class first.");
+      return;
+    }
+
     setState({ status: "loading" });
     try {
       const response = await fetch("/api/evaluate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ courseSlug, classSlug, repoUrl }),
       });
 
       if (!response.ok) {
@@ -40,14 +74,48 @@ export function EvaluatorApp() {
 
       const data = (await response.json()) as EvaluateResponse;
 
-      if (!data.validation.valid || !data.report) {
+      if (!data.validation.valid || !data.evaluation) {
         setState({ status: "invalid", validation: data.validation });
         return;
       }
 
-      setState({ status: "success", validation: data.validation, report: data.report });
+      setState({
+        status: "success",
+        validation: data.validation,
+        evaluation: data.evaluation,
+        weightedScore: data.weightedScore ?? null,
+        files: data.files,
+        resultsTable: data.resultsTable ?? [],
+        attemptHistory: data.attemptHistory ?? [],
+        classTitle,
+        cached: data.cached ?? false,
+      });
     } catch {
       setState({ status: "error", message: "Network error — could not reach the evaluation service." });
+    }
+  }
+
+  async function handleLookup(githubUsername: string) {
+    setLookupLoading(true);
+    try {
+      const params = new URLSearchParams({ githubUsername });
+      if (courseSlug) params.set("courseSlug", courseSlug);
+      const response = await fetch(`/api/results?${params.toString()}`);
+      const data = (await response.json().catch(() => null)) as {
+        resultsTable?: ResultsRow[];
+        attemptHistory?: AttemptHistoryRow[];
+        error?: string;
+      } | null;
+      if (!response.ok) {
+        toast.error(data?.error ?? "Could not load results.");
+        return;
+      }
+      setLookupResults(data?.resultsTable ?? []);
+      setLookupHistory(data?.attemptHistory ?? []);
+    } catch {
+      toast.error("Network error — could not reach the results service.");
+    } finally {
+      setLookupLoading(false);
     }
   }
 
@@ -56,10 +124,24 @@ export function EvaluatorApp() {
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold">Assignment Repository Evaluator</h1>
         <p className="text-muted-foreground">
-          Enter a public GitHub repository URL to validate its structure and get an AI-generated evaluation of every
-          class assignment.
+          Choose a course and class, then submit your GitHub repository for an AI-generated evaluation.
         </p>
       </div>
+
+      <CourseClassPicker
+        courseSlug={courseSlug}
+        classSlug={classSlug}
+        disabled={state.status === "loading"}
+        onCourseChange={(slug) => {
+          setCourseSlug(slug);
+          setClassSlug(null);
+          setClassTitle("");
+        }}
+        onClassChange={(slug, title) => {
+          setClassSlug(slug);
+          setClassTitle(title);
+        }}
+      />
 
       <RepoUrlForm onSubmit={handleSubmit} isLoading={state.status === "loading"} />
 
@@ -74,7 +156,37 @@ export function EvaluatorApp() {
         </Alert>
       )}
 
-      {state.status === "success" && <Dashboard report={state.report} />}
+      {state.status === "success" && (
+        <>
+          {state.cached && (
+            <Alert>
+              <AlertTitle>This repository hasn&apos;t changed</AlertTitle>
+              <AlertDescription>
+                Showing your existing result for this commit — nothing new was submitted, so this wasn&apos;t re-graded.
+              </AlertDescription>
+            </Alert>
+          )}
+          <Dashboard
+            validation={state.validation}
+            evaluation={state.evaluation}
+            weightedScore={state.weightedScore}
+            classTitle={state.classTitle}
+            files={state.files}
+            resultsTable={state.resultsTable}
+            attemptHistory={state.attemptHistory}
+          />
+        </>
+      )}
+
+      <Separator />
+
+      <div className="space-y-3">
+        <h2 className="text-lg font-semibold">Check Your Results</h2>
+        <p className="text-sm text-muted-foreground">Look up your grading history by GitHub username, any time.</p>
+        <ResultsLookupForm onLookup={handleLookup} isLoading={lookupLoading} />
+        {lookupResults && <ResultsTable rows={lookupResults} />}
+        {lookupHistory && <AttemptHistoryTable rows={lookupHistory} />}
+      </div>
     </div>
   );
 }

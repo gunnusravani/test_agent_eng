@@ -121,15 +121,20 @@ export function hasMyWorkDirectory(tree: GitTreeItem[]): boolean {
   return Boolean(findMyWorkPath(tree));
 }
 
-export function listClassDirectories(tree: GitTreeItem[], myWorkPath: string): string[] {
-  const found = new Set<string>();
-  const prefix = `${myWorkPath}/`;
-  for (const item of tree) {
-    if (item.type !== "tree" || !item.path.startsWith(prefix)) continue;
-    const match = item.path.slice(prefix.length).match(/^(class-\d{2})$/);
-    if (match) found.add(match[1]);
+/** Exact-path existence check for a single class folder — not tied to any particular slug naming convention. */
+export function hasClassDirectory(tree: GitTreeItem[], myWorkPath: string, classSlug: string): boolean {
+  const path = `${myWorkPath}/${classSlug}`;
+  return tree.some((item) => item.type === "tree" && item.path === path);
+}
+
+/** Resolves a branch name to the commit SHA it currently points at, so evaluations record the exact commit graded. */
+export async function resolveBranchSha(owner: string, repo: string, branch: string): Promise<string> {
+  try {
+    const { data } = await octokit.rest.repos.getBranch({ owner, repo, branch });
+    return data.commit.sha;
+  } catch (error) {
+    throw mapError(error);
   }
-  return [...found].sort();
 }
 
 export function findReadme(tree: GitTreeItem[]): boolean {

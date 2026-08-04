@@ -1,11 +1,19 @@
-import type { AssignmentConfig } from "@/types";
+import { and, eq } from "drizzle-orm";
+import { db } from "./lib/db/client";
+import { classes, assignmentVersions } from "./lib/db/schema";
+import { createCourse, createClass, createAssignmentVersionAndActivate, getCourseBySlug } from "./lib/db/queries";
 
-/**
- * Per-class assignment specs used to build the LLM evaluation prompt.
- * Edit this file to match your actual curriculum before evaluating real
- * submissions — these are generic placeholders, not a real syllabus.
- */
-export const assignments: Record<string, AssignmentConfig> = {
+const EVEN_RUBRIC = { completeness: 20, correctness: 20, quality: 20, novelty: 20, understanding: 20 };
+
+interface SeedAssignment {
+  title: string;
+  objective: string;
+  expectedDeliverables: string[];
+  expectedForkOf?: string;
+}
+
+/** Original single-course curriculum, formerly config/assignments.ts — this data now lives here. */
+const assignments: Record<string, SeedAssignment> = {
   "class-01": {
     title: "Set Up Your Agent Engineering Workspace",
     objective:
@@ -103,8 +111,80 @@ export const assignments: Record<string, AssignmentConfig> = {
   },
 };
 
-export function getAssignment(classId: string): AssignmentConfig | undefined {
-  return assignments[classId];
+const ALL_CLASS_IDS = Array.from({ length: 10 }, (_, i) => `class-${String(i + 1).padStart(2, "0")}`);
+
+async function main() {
+  let course = await getCourseBySlug("agent-engineering");
+  if (!course) {
+    course = await createCourse({
+      slug: "agent-engineering",
+      title: "Agent Engineering",
+      description: "Seeded from the original single-course config/assignments.ts.",
+      status: "published",
+    });
+    console.log(`Created course "agent-engineering" (${course.id})`);
+  } else {
+    console.log(`Course "agent-engineering" already exists (${course.id})`);
+  }
+
+  for (const [index, classId] of ALL_CLASS_IDS.entries()) {
+    const assignment = assignments[classId];
+    if (!assignment) continue;
+
+    let [classRow] = await db
+      .select()
+      .from(classes)
+      .where(and(eq(classes.courseId, course.id), eq(classes.slug, classId)))
+      .limit(1);
+
+    if (!classRow) {
+      classRow = await createClass({
+        courseId: course.id,
+        slug: classId,
+        title: classId,
+        orderIndex: index,
+        status: "published",
+        expectedForkOf: assignment.expectedForkOf,
+      });
+      console.log(`  Created class ${classId}`);
+    } else if (classRow.title !== classId) {
+      [classRow] = await db.update(classes).set({ title: classId, updatedAt: new Date() }).where(eq(classes.id, classRow.id)).returning();
+      console.log(`  Updated class ${classId} title to "${classId}"`);
+    } else {
+      console.log(`  Class ${classId} already exists`);
+    }
+
+    const [existingVersion] = await db
+      .select()
+      .from(assignmentVersions)
+      .where(and(eq(assignmentVersions.classId, classRow.id), eq(assignmentVersions.versionNumber, 1)))
+      .limit(1);
+
+    if (!existingVersion) {
+      await createAssignmentVersionAndActivate({
+        classId: classRow.id,
+        versionNumber: 1,
+        title: assignment.title,
+        objective: assignment.objective,
+        expectedDeliverables: assignment.expectedDeliverables,
+        expectedForkOf: assignment.expectedForkOf,
+        rubricWeights: EVEN_RUBRIC,
+      });
+      console.log(`  Created + activated v1 for ${classId}`);
+    } else if (!classRow.currentAssignmentVersionId) {
+      await db.update(classes).set({ currentAssignmentVersionId: existingVersion.id }).where(eq(classes.id, classRow.id));
+      console.log(`  Re-activated existing v1 for ${classId}`);
+    } else {
+      console.log(`  v1 already exists for ${classId}`);
+    }
+  }
+
+  console.log("Seed complete.");
 }
 
-export const ALL_CLASS_IDS = Array.from({ length: 10 }, (_, i) => `class-${String(i + 1).padStart(2, "0")}`);
+main()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });

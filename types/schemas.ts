@@ -11,12 +11,6 @@ export const repoUrlSchema = z.object({
     .refine(isGitHubRepoUrl, "Must be a github.com repository URL, e.g. https://github.com/owner/repo"),
 });
 
-export const classChecklistItemSchema = z.object({
-  classId: z.string(),
-  present: z.boolean(),
-  fileCount: z.number().optional(),
-});
-
 export const forkCheckSchema = z.object({
   expectedUpstream: z.string(),
   actualUpstream: z.string().nullable(),
@@ -25,23 +19,23 @@ export const forkCheckSchema = z.object({
 
 export type ForkCheck = z.infer<typeof forkCheckSchema>;
 
-export const validationResultSchema = z.object({
+/** Validation result for a single course/class submission (one repo, one class folder). */
+export const singleClassValidationResultSchema = z.object({
   valid: z.boolean(),
   owner: z.string(),
   repo: z.string(),
   htmlUrl: z.string(),
   hasReadme: z.boolean(),
   hasMyWork: z.boolean(),
-  classes: z.array(classChecklistItemSchema),
-  errors: z.array(z.string()),
+  hasClassFolder: z.boolean(),
   isFork: z.boolean(),
   parentFullName: z.string().nullable(),
-  /** Only present when the configured class-01 assignment declares an expectedForkOf upstream. */
+  /** Only present when the class declares an expectedForkOf upstream. */
   forkCheck: forkCheckSchema.nullable(),
+  errors: z.array(z.string()),
 });
 
-export type ValidationResult = z.infer<typeof validationResultSchema>;
-export type ClassChecklistItem = z.infer<typeof classChecklistItemSchema>;
+export type ValidationResult = z.infer<typeof singleClassValidationResultSchema>;
 
 // Passed directly to the AI SDK's generateObject() as the target schema —
 // this is what powers the retry-on-malformed-JSON loop in lib/evaluator.ts.
@@ -66,6 +60,7 @@ export const assignmentEvaluationSchema = z.object({
 
 export type AssignmentEvaluation = z.infer<typeof assignmentEvaluationSchema>;
 export type ScoreDimensions = AssignmentEvaluation["scores"];
+export type LetterGrade = AssignmentEvaluation["overallGrade"];
 
 export const gatheredFileSchema = z.object({
   path: z.string(),
@@ -100,10 +95,6 @@ export const assignmentEvaluationResultSchema = z.discriminatedUnion("status", [
     modelUsed: z.string(),
   }),
   z.object({
-    status: z.literal("not_submitted"),
-    classId: z.string(),
-  }),
-  z.object({
     status: z.literal("error"),
     classId: z.string(),
     message: z.string(),
@@ -112,30 +103,81 @@ export const assignmentEvaluationResultSchema = z.discriminatedUnion("status", [
 
 export type AssignmentEvaluationResult = z.infer<typeof assignmentEvaluationResultSchema>;
 
-export const repositoryReportSchema = z.object({
-  repository: z.object({ owner: z.string(), repo: z.string(), url: z.string() }),
-  validation: validationResultSchema,
-  classEvaluations: z.array(assignmentEvaluationResultSchema),
-  classFiles: z.record(z.string(), classFilesSchema),
-  aggregate: z.object({
-    averageScores: assignmentEvaluationSchema.shape.scores,
-    overallGrade: assignmentEvaluationSchema.shape.overallGrade,
-    completionPercentage: z.number(),
-    completedCount: z.number(),
-    totalCount: z.number(),
-    averageConfidence: z.number(),
-  }),
-  generatedAt: z.string(),
+export const courseSchema = z.object({
+  id: z.string(),
+  slug: z.string(),
+  title: z.string(),
+  description: z.string().nullable(),
 });
 
-export type RepositoryReport = z.infer<typeof repositoryReportSchema>;
+export type CourseDto = z.infer<typeof courseSchema>;
 
-export const evaluateRequestSchema = repoUrlSchema;
+export const classSummarySchema = z.object({
+  id: z.string(),
+  slug: z.string(),
+  title: z.string(),
+  objective: z.string(),
+  orderIndex: z.number(),
+});
+
+export type ClassSummaryDto = z.infer<typeof classSummarySchema>;
+
+/** One row per class: student's best-ever score, most recent score, and how many times they've submitted. */
+export const resultsRowSchema = z.object({
+  classId: z.string(),
+  classSlug: z.string(),
+  classTitle: z.string(),
+  maxGrade: assignmentEvaluationSchema.shape.overallGrade,
+  maxScore: z.number(),
+  latestGrade: assignmentEvaluationSchema.shape.overallGrade,
+  latestScore: z.number(),
+  attempts: z.number(),
+});
+
+export type ResultsRow = z.infer<typeof resultsRowSchema>;
+
+/** One row per past submission — the full run-by-run history behind a ResultsRow's summary. */
+export const attemptHistoryRowSchema = z.object({
+  attemptId: z.string(),
+  classSlug: z.string(),
+  classTitle: z.string(),
+  status: z.enum(["success", "error"]),
+  weightedScore: z.number().nullable(),
+  grade: assignmentEvaluationSchema.shape.overallGrade.nullable(),
+  /** ISO timestamp — render with toLocaleString() client-side so it displays in the viewer's local time zone. */
+  createdAt: z.string(),
+});
+
+export type AttemptHistoryRow = z.infer<typeof attemptHistoryRowSchema>;
+
+export const resultsQuerySchema = z.object({
+  githubUsername: z.string().min(1, "githubUsername is required"),
+  courseSlug: z.string().optional(),
+});
+
+export type ResultsQuery = z.infer<typeof resultsQuerySchema>;
+
+export const evaluateRequestSchema = z.object({
+  courseSlug: z.string().min(1, "Course is required"),
+  classSlug: z.string().min(1, "Class is required"),
+  repoUrl: z
+    .string()
+    .min(1, "Enter a GitHub repository URL")
+    .refine(isGitHubRepoUrl, "Must be a github.com repository URL, e.g. https://github.com/owner/repo"),
+});
+
 export type EvaluateRequest = z.infer<typeof evaluateRequestSchema>;
 
 export const evaluateResponseSchema = z.object({
-  validation: validationResultSchema,
-  report: repositoryReportSchema.optional(),
+  validation: singleClassValidationResultSchema,
+  evaluation: assignmentEvaluationResultSchema.optional(),
+  /** Derived from the rubric-weighted average of evaluation.data.scores — the canonical score/grade, not evaluation.data.overallGrade. */
+  weightedScore: z.number().nullable().optional(),
+  files: classFilesSchema.optional(),
+  resultsTable: z.array(resultsRowSchema).optional(),
+  attemptHistory: z.array(attemptHistoryRowSchema).optional(),
+  /** True when this is a prior attempt reused because the commit/class/assignment version/prompt/model exactly matched — no new LLM call was made. */
+  cached: z.boolean().optional(),
 });
 
 export type EvaluateResponse = z.infer<typeof evaluateResponseSchema>;

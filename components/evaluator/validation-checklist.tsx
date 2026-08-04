@@ -26,6 +26,7 @@ export function ValidationChecklist({ validation }: { validation: ValidationResu
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
           <ChecklistLine ok={validation.hasReadme} label="README.md present" />
           <ChecklistLine ok={validation.hasMyWork} label="my-work/ directory present" />
+          <ChecklistLine ok={validation.hasClassFolder} label="Class folder present" />
           {validation.forkCheck && (
             <ChecklistLine
               ok={validation.forkCheck.ok}
@@ -38,16 +39,6 @@ export function ValidationChecklist({ validation }: { validation: ValidationResu
               }
             />
           )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 sm:grid-cols-3 md:grid-cols-5">
-          {validation.classes.map((item) => (
-            <ChecklistLine
-              key={item.classId}
-              ok={item.present}
-              label={item.present ? item.classId : `${item.classId} missing`}
-            />
-          ))}
         </div>
       </CardContent>
     </Card>

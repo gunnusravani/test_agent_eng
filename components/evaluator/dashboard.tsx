@@ -1,27 +1,47 @@
-import { OverallScoreCard } from "@/components/evaluator/overall-score-card";
 import { AssignmentCard } from "@/components/evaluator/assignment-card";
 import { ExportButtons } from "@/components/evaluator/export-buttons";
 import { ValidationChecklist } from "@/components/evaluator/validation-checklist";
-import type { RepositoryReport } from "@/types/schemas";
+import { ResultsTable } from "@/components/evaluator/results-table";
+import { AttemptHistoryTable } from "@/components/evaluator/attempt-history-table";
+import type { AssignmentEvaluationResult, AttemptHistoryRow, ClassFilesDto, ResultsRow, ValidationResult } from "@/types/schemas";
 
-export function Dashboard({ report }: { report: RepositoryReport }) {
+export function Dashboard({
+  validation,
+  evaluation,
+  weightedScore,
+  classTitle,
+  files,
+  resultsTable,
+  attemptHistory,
+}: {
+  validation: ValidationResult;
+  evaluation: AssignmentEvaluationResult;
+  weightedScore: number | null;
+  classTitle: string;
+  files?: ClassFilesDto;
+  resultsTable: ResultsRow[];
+  attemptHistory: AttemptHistoryRow[];
+}) {
   return (
     <div className="space-y-6">
-      <ValidationChecklist validation={report.validation} />
+      <ValidationChecklist validation={validation} />
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex-1">
-          <OverallScoreCard aggregate={report.aggregate} />
-        </div>
-      </div>
+      <AssignmentCard evaluation={evaluation} weightedScore={weightedScore} classTitle={classTitle} files={files} />
 
-      <ExportButtons report={report} />
+      <ExportButtons
+        context={{
+          owner: validation.owner,
+          repo: validation.repo,
+          classSlug: evaluation.classId,
+          classTitle,
+          evaluation,
+          weightedScore,
+        }}
+      />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {report.classEvaluations.map((evaluation) => (
-          <AssignmentCard key={evaluation.classId} evaluation={evaluation} files={report.classFiles[evaluation.classId]} />
-        ))}
-      </div>
+      <ResultsTable rows={resultsTable} />
+
+      <AttemptHistoryTable rows={attemptHistory} />
     </div>
   );
 }

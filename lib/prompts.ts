@@ -1,5 +1,8 @@
 import type { AssignmentConfig, GatheredClass } from "@/types";
 
+/** Bump manually whenever SYSTEM_PROMPT or buildEvaluationPrompt change materially — stored on every attempt for reproducibility. */
+export const PROMPT_VERSION = "v1";
+
 export const SYSTEM_PROMPT = `You are an experienced, fair, and detail-oriented programming instructor grading a student's class assignment submission.
 
 You evaluate strictly based on the code and documentation provided. You do not assume functionality you cannot see evidence of. You are constructive but honest: a working, thoughtful implementation deserves genuine praise, and an incomplete or copy-pasted one deserves honest, specific criticism.
