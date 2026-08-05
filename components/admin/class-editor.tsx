@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { AdminAssignmentVersionDto, AdminClassDto, RubricWeights } from "@/types/schemas";
 
 const fieldClass =
@@ -133,6 +134,18 @@ export function ClassEditor({ classId }: { classId: string }) {
         <h1 className="text-2xl font-semibold">{classRow.title}</h1>
         <Badge variant="secondary">{classRow.slug}</Badge>
       </div>
+
+      {/* Mirrors isMultiProjectClass() in lib/graders/class-02.ts — kept as a literal here to avoid pulling grading logic into the client bundle. */}
+      {classRow.slug === "class-02" && (
+        <Alert>
+          <AlertTitle>This class uses a specialized grader</AlertTitle>
+          <AlertDescription>
+            class-02 is graded by a dedicated multi-project pipeline (see the four Antigravity codelab projects), not the rubric weights
+            below. Title/objective/expected deliverables are still shown to students and given to the grader as context, but the rubric
+            weights are unused for this class — any valid values are fine.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card>
         <CardHeader>

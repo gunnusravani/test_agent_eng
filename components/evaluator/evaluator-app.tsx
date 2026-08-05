@@ -17,6 +17,7 @@ import type {
   AttemptHistoryRow,
   ClassFilesDto,
   EvaluateResponse,
+  MultiProjectEvaluationResult,
   ResultsRow,
   ValidationResult,
 } from "@/types/schemas";
@@ -28,7 +29,8 @@ type EvaluatorState =
   | {
       status: "success";
       validation: ValidationResult;
-      evaluation: AssignmentEvaluationResult;
+      evaluation?: AssignmentEvaluationResult;
+      multiProjectResult?: MultiProjectEvaluationResult;
       weightedScore: number | null;
       files?: ClassFilesDto;
       resultsTable: ResultsRow[];
@@ -74,7 +76,7 @@ export function EvaluatorApp() {
 
       const data = (await response.json()) as EvaluateResponse;
 
-      if (!data.validation.valid || !data.evaluation) {
+      if (!data.validation.valid || (!data.evaluation && !data.multiProjectResult)) {
         setState({ status: "invalid", validation: data.validation });
         return;
       }
@@ -83,6 +85,7 @@ export function EvaluatorApp() {
         status: "success",
         validation: data.validation,
         evaluation: data.evaluation,
+        multiProjectResult: data.multiProjectResult,
         weightedScore: data.weightedScore ?? null,
         files: data.files,
         resultsTable: data.resultsTable ?? [],
@@ -169,6 +172,7 @@ export function EvaluatorApp() {
           <Dashboard
             validation={state.validation}
             evaluation={state.evaluation}
+            multiProjectResult={state.multiProjectResult}
             weightedScore={state.weightedScore}
             classTitle={state.classTitle}
             files={state.files}

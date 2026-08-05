@@ -1,0 +1,1 @@
+ALTER TABLE "attempts" ADD COLUMN "structured_result" jsonb;

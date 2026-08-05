@@ -186,6 +186,8 @@ export interface InsertAttemptInput {
   weightedScore?: number | null;
   confidence?: number | null;
   feedbackJson?: Attempt["feedbackJson"];
+  /** Rich per-project breakdown for classes graded by a specialized grader (see lib/graders/class-02.ts) — unset for the standard rubric. */
+  structuredResult?: Attempt["structuredResult"];
   errorMessage?: string | null;
   promptVersion: string;
   modelName: string;
@@ -315,6 +317,7 @@ export async function getAttemptHistoryForStudent(githubUsername: string, course
       status: attempts.status,
       weightedScore: attempts.weightedScore,
       feedbackJson: attempts.feedbackJson,
+      structuredResult: attempts.structuredResult,
       errorMessage: attempts.errorMessage,
       createdAt: attempts.createdAt,
     })
@@ -331,7 +334,7 @@ export async function getAttemptHistoryForStudent(githubUsername: string, course
     status: row.status,
     weightedScore: row.weightedScore,
     grade: row.weightedScore != null ? scoreToGrade(row.weightedScore) : null,
-    description: row.status === "success" ? (row.feedbackJson?.summary ?? null) : row.errorMessage,
+    description: row.status === "success" ? (row.feedbackJson?.summary ?? row.structuredResult?.summary ?? null) : row.errorMessage,
     createdAt: row.createdAt.toISOString(),
   }));
 }

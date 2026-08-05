@@ -103,6 +103,86 @@ export const assignmentEvaluationResultSchema = z.discriminatedUnion("status", [
 
 export type AssignmentEvaluationResult = z.infer<typeof assignmentEvaluationResultSchema>;
 
+// ---------------------------------------------------------------------------
+// Multi-project grading (class-02 and any future codelab-style assignment —
+// see lib/graders/class-02.ts). A parallel result shape to the evaluation
+// schemas above, not a variant of them: this assignment doesn't have
+// completeness/correctness/quality/novelty/understanding scores at all.
+// ---------------------------------------------------------------------------
+
+function projectScoreSchema(maxScore: number) {
+  return z.object({
+    score: z.number().min(0).max(maxScore),
+    feedback: z.string(),
+  });
+}
+
+// Passed directly to generateObject() as the target schema for the class-02 grader.
+// maxScore/overallScore are deliberately absent here — they're fixed constants and a
+// server-computed sum, not something an LLM should be asked to state or add up.
+export const multiProjectEvaluationSchema = z.object({
+  newsHighlights: projectScoreSchema(10),
+  conferenceWebsite: projectScoreSchema(30),
+  mockStubs: projectScoreSchema(20),
+  pomodoroTimer: projectScoreSchema(25),
+  readme: projectScoreSchema(15),
+  bonus: z.object({
+    score: z.number().min(0).max(10),
+    features: z.array(z.string()),
+  }),
+  pass: z.boolean(),
+  summary: z.string(),
+  strengths: z.array(z.string()),
+  improvements: z.array(z.string()),
+});
+
+export type MultiProjectEvaluation = z.infer<typeof multiProjectEvaluationSchema>;
+
+function scoredProjectResultSchema() {
+  return z.object({
+    score: z.number(),
+    maxScore: z.number(),
+    feedback: z.string(),
+  });
+}
+
+/** The LLM's output enriched server-side with each project's fixed maxScore and the computed overallScore — what actually gets stored and returned. */
+export const multiProjectResultSchema = z.object({
+  newsHighlights: scoredProjectResultSchema(),
+  conferenceWebsite: scoredProjectResultSchema(),
+  mockStubs: scoredProjectResultSchema(),
+  pomodoroTimer: scoredProjectResultSchema(),
+  readme: scoredProjectResultSchema(),
+  bonus: z.object({
+    score: z.number(),
+    features: z.array(z.string()),
+  }),
+  overallScore: z.number(),
+  pass: z.boolean(),
+  summary: z.string(),
+  strengths: z.array(z.string()),
+  improvements: z.array(z.string()),
+});
+
+export type MultiProjectResult = z.infer<typeof multiProjectResultSchema>;
+
+export const multiProjectEvaluationResultSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("success"),
+    classId: z.string(),
+    data: multiProjectResultSchema,
+    evaluatedAt: z.string(),
+    modelUsed: z.string(),
+  }),
+  z.object({
+    status: z.literal("error"),
+    classId: z.string(),
+    message: z.string(),
+  }),
+]);
+
+export type MultiProjectEvaluationResult = z.infer<typeof multiProjectEvaluationResultSchema>;
+
 export const courseSchema = z.object({
   id: z.string(),
   slug: z.string(),
@@ -172,8 +252,11 @@ export type EvaluateRequest = z.infer<typeof evaluateRequestSchema>;
 
 export const evaluateResponseSchema = z.object({
   validation: singleClassValidationResultSchema,
+  /** Populated for classes graded by the standard 5-dimension rubric; mutually exclusive with multiProjectResult. */
   evaluation: assignmentEvaluationResultSchema.optional(),
-  /** Derived from the rubric-weighted average of evaluation.data.scores — the canonical score/grade, not evaluation.data.overallGrade. */
+  /** Populated for classes graded by a specialized multi-part grader (e.g. class-02); mutually exclusive with evaluation. */
+  multiProjectResult: multiProjectEvaluationResultSchema.optional(),
+  /** Derived from the rubric-weighted average of evaluation.data.scores (or overallScore/10 for multiProjectResult) — the canonical score/grade. */
   weightedScore: z.number().nullable().optional(),
   files: classFilesSchema.optional(),
   resultsTable: z.array(resultsRowSchema).optional(),

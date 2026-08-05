@@ -5,6 +5,7 @@ import { fetchRepository, findMyWorkPath, findReadme, getRepoTree, hasClassDirec
 import { gatherClassFiles } from "@/lib/parser";
 import { scoreToGrade, weightedAverage } from "@/lib/grades";
 import { PROMPT_VERSION } from "@/lib/prompts";
+import { evaluateClass02Assignment, isMultiProjectClass } from "@/lib/graders/class-02";
 import {
   findExistingAttempt,
   getAttemptHistoryForStudent,
@@ -14,7 +15,13 @@ import {
   insertAttempt,
 } from "@/lib/db/queries";
 import type { Attempt } from "@/lib/db/schema";
-import { evaluateRequestSchema, type AssignmentEvaluationResult, type ForkCheck, type ValidationResult } from "@/types/schemas";
+import {
+  evaluateRequestSchema,
+  type AssignmentEvaluationResult,
+  type ForkCheck,
+  type MultiProjectEvaluationResult,
+  type ValidationResult,
+} from "@/types/schemas";
 import type { AssignmentConfig } from "@/types";
 
 export const runtime = "nodejs";
@@ -51,6 +58,20 @@ function attemptToEvaluationResult(attempt: Attempt, classSlug: string): Assignm
   };
 }
 
+/** Same idea as attemptToEvaluationResult, for classes graded by a specialized multi-part grader. */
+function attemptToMultiProjectResult(attempt: Attempt, classSlug: string): MultiProjectEvaluationResult {
+  if (attempt.status === "error") {
+    return { status: "error", classId: classSlug, message: attempt.errorMessage ?? "Unknown error" };
+  }
+  return {
+    status: "success",
+    classId: classSlug,
+    data: attempt.structuredResult!,
+    evaluatedAt: attempt.createdAt.toISOString(),
+    modelUsed: attempt.modelName,
+  };
+}
+
 export async function POST(request: Request) {
   let body: unknown;
   try {
@@ -64,6 +85,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid request." }, { status: 400 });
   }
   const { courseSlug, classSlug, repoUrl } = parsed.data;
+  const isMultiProject = isMultiProjectClass(classSlug);
 
   const lookup = await getClassForEvaluation(courseSlug, classSlug);
   if (!lookup) {
@@ -90,6 +112,9 @@ export async function POST(request: Request) {
     const errors: string[] = [];
     if (!hasMyWork) errors.push("Missing my-work directory.");
     if (hasMyWork && !hasClassFolder) errors.push(`Missing class folder: my-work/${classSlug}.`);
+    // No further class-02-specific structural gate here on purpose: which of the four
+    // agy2-pprojects folders exist is graded per-project inside evaluateClass02Assignment
+    // (a missing project scores near-zero on its own, it doesn't fail the whole submission).
 
     const forkCheck: ForkCheck | null = classRow.expectedForkOf
       ? {
@@ -133,15 +158,15 @@ export async function POST(request: Request) {
       const attemptHistory = await getAttemptHistoryForStudent(owner, courseSlug);
       return NextResponse.json({
         validation,
-        evaluation: attemptToEvaluationResult(existingAttempt, classSlug),
+        ...(isMultiProject
+          ? { multiProjectResult: attemptToMultiProjectResult(existingAttempt, classSlug) }
+          : { evaluation: attemptToEvaluationResult(existingAttempt, classSlug) }),
         weightedScore: existingAttempt.weightedScore,
         resultsTable,
         attemptHistory,
         cached: true,
       });
     }
-
-    const gathered = await gatherClassFiles({ owner, repo, tree, classId: classSlug, myWorkPath: myWorkPath! });
 
     const assignmentConfig: AssignmentConfig = {
       title: assignmentVersion.title,
@@ -150,6 +175,32 @@ export async function POST(request: Request) {
       expectedForkOf: classRow.expectedForkOf ?? undefined,
     };
 
+    if (isMultiProject) {
+      const evaluation = await evaluateClass02Assignment({ assignment: assignmentConfig, owner, repo, tree, myWorkPath: myWorkPath! });
+      const weightedScore = evaluation.status === "success" ? Math.min(evaluation.data.overallScore, 100) / 10 : null;
+
+      await insertAttempt({
+        studentId: student.id,
+        classId: classRow.id,
+        assignmentVersionId: assignmentVersion.id,
+        repoUrl,
+        commitSha,
+        status: evaluation.status,
+        weightedScore,
+        confidence: null,
+        structuredResult: evaluation.status === "success" ? evaluation.data : undefined,
+        errorMessage: evaluation.status === "error" ? evaluation.message : null,
+        promptVersion: PROMPT_VERSION,
+        modelName: MODEL_NAME,
+      });
+
+      const resultsTable = await getResultsForStudent(owner, courseSlug);
+      const attemptHistory = await getAttemptHistoryForStudent(owner, courseSlug);
+
+      return NextResponse.json({ validation, multiProjectResult: evaluation, weightedScore, resultsTable, attemptHistory });
+    }
+
+    const gathered = await gatherClassFiles({ owner, repo, tree, classId: classSlug, myWorkPath: myWorkPath! });
     const evaluation = await evaluateAssignment({ assignment: assignmentConfig, gathered });
     const weightedScore = evaluation.status === "success" ? weightedAverage(evaluation.data.scores, assignmentVersion.rubricWeights) : null;
 

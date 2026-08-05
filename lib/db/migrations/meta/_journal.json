@@ -15,6 +15,13 @@
       "when": 1785854678181,
       "tag": "0001_supreme_firebird",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785913446891,
+      "tag": "0002_loving_wendell_rand",
+      "breakpoints": true
     }
   ]
 }

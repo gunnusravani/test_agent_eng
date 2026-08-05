@@ -136,6 +136,26 @@ export const attempts = pgTable(
       missingFeatures: string[];
       recommendations: string[];
     }>(),
+    /**
+     * Rich per-project breakdown for classes graded by a specialized multi-part grader
+     * (see lib/graders/class-02.ts) instead of the universal 5-dimension rubric above —
+     * null for every other class. weightedScore is still populated for these attempts
+     * (derived from overallScore) so grade display/results/analytics need no special case;
+     * this column is purely for the detailed multi-project view.
+     */
+    structuredResult: jsonb("structured_result").$type<{
+      newsHighlights: { score: number; maxScore: number; feedback: string };
+      conferenceWebsite: { score: number; maxScore: number; feedback: string };
+      mockStubs: { score: number; maxScore: number; feedback: string };
+      pomodoroTimer: { score: number; maxScore: number; feedback: string };
+      readme: { score: number; maxScore: number; feedback: string };
+      bonus: { score: number; features: string[] };
+      overallScore: number;
+      pass: boolean;
+      summary: string;
+      strengths: string[];
+      improvements: string[];
+    }>(),
     errorMessage: text("error_message"),
     promptVersion: text("prompt_version").notNull(),
     modelName: text("model_name").notNull(),

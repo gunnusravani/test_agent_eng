@@ -19,6 +19,7 @@ export const IGNORED_DIR_SEGMENTS = new Set([
   ".vscode",
   ".pytest_cache",
   ".mypy_cache",
+  ".cache",
 ]);
 
 export function isIgnoredPath(path: string): boolean {
@@ -95,22 +96,35 @@ const CATEGORY_PRIORITY: Record<FileCategory, number> = {
   binary: 4,
 };
 
-export async function gatherClassFiles(params: {
+export interface GatheredFiles {
+  present: boolean;
+  hasReadme: boolean;
+  filesIncluded: GatheredFile[];
+  filesOmitted: OmittedFile[];
+  totalCharsUsed: number;
+}
+
+/**
+ * Fetches, classifies, and budget-truncates every reviewable file under an arbitrary
+ * tree path prefix. This is the shared engine behind gatherClassFiles (one class,
+ * my-work/{classId}/) and the class-02 grader (one project subfolder at a time,
+ * my-work/class-02/agy2-pprojects/{project}/) — same rules, different budget per caller.
+ */
+export async function gatherFilesUnderPrefix(params: {
   owner: string;
   repo: string;
   tree: GitTreeItem[];
-  classId: string;
-  myWorkPath: string;
-}): Promise<GatheredClass> {
-  const { owner, repo, tree, classId, myWorkPath } = params;
-  const classPrefix = `${myWorkPath}/${classId}/`;
+  pathPrefix: string;
+  budgetChars?: number;
+}): Promise<GatheredFiles> {
+  const { owner, repo, tree, pathPrefix, budgetChars = MAX_CONTEXT_CHARS_PER_CLASS } = params;
 
   const entries = tree.filter(
-    (item) => item.type === "blob" && item.path.startsWith(classPrefix) && !isIgnoredPath(item.path),
+    (item) => item.type === "blob" && item.path.startsWith(pathPrefix) && !isIgnoredPath(item.path),
   );
 
   if (entries.length === 0) {
-    return { classId, present: false, hasReadme: false, filesIncluded: [], filesOmitted: [], totalCharsUsed: 0 };
+    return { present: false, hasReadme: false, filesIncluded: [], filesOmitted: [], totalCharsUsed: 0 };
   }
 
   const hasReadme = entries.some((e) => /(^|\/)readme\.md$/i.test(e.path));
@@ -144,7 +158,7 @@ export async function gatherClassFiles(params: {
   let totalCharsUsed = 0;
 
   for (const file of fetched) {
-    const remainingBudget = MAX_CONTEXT_CHARS_PER_CLASS - totalCharsUsed;
+    const remainingBudget = budgetChars - totalCharsUsed;
     if (remainingBudget <= 0) {
       filesOmitted.push({ path: file.path, sizeBytes: file.content.length, reason: "budget" });
       continue;
@@ -156,5 +170,17 @@ export async function gatherClassFiles(params: {
     totalCharsUsed += content.length;
   }
 
-  return { classId, present: true, hasReadme, filesIncluded, filesOmitted, totalCharsUsed };
+  return { present: true, hasReadme, filesIncluded, filesOmitted, totalCharsUsed };
+}
+
+export async function gatherClassFiles(params: {
+  owner: string;
+  repo: string;
+  tree: GitTreeItem[];
+  classId: string;
+  myWorkPath: string;
+}): Promise<GatheredClass> {
+  const { owner, repo, tree, classId, myWorkPath } = params;
+  const result = await gatherFilesUnderPrefix({ owner, repo, tree, pathPrefix: `${myWorkPath}/${classId}/` });
+  return { classId, ...result };
 }
