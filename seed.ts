@@ -40,13 +40,14 @@ const assignments: Record<string, SeedAssignment> = {
   "class-03": {
     title: "Build the WidgetWare SDR Context Package",
     objective:
-      "Build the separated context layers an SDR agent will need — WITHOUT building the agent itself yet. Create the business configuration, agent instructions, and a context builder that assembles them, then prove it works with test scenarios. No ADK agent, Gemini calls, email/CRM/web-search integration, or deployment happens in this class — that's Class 4.",
+      "Convert the WidgetWare SDR business concepts into a structured, testable context package a future agent can consume — without building the ADK agent yet. The package must keep five context layers separate (system instructions, business context, task context, retrieved evidence, workflow state) and be verified against four required scenarios: a qualified account, an unqualified account, insufficient evidence, and a prompt-injection attempt. Full spec: my-work/class-03/SPEC.md.",
     expectedDeliverables: [
-      "Config files at my-work/class-03/config/: products.yaml, icp.yaml, policies.yaml — stable WidgetWare business rules (product info, Ideal Customer Profile, SDR policies)",
-      "Agent instructions at my-work/class-03/src/widgetware_sdr/instructions.py defining the agent's role, evidence rules, safety boundaries, and escalation behavior",
-      "A context builder at my-work/class-03/src/widgetware_sdr/context_builder.py that assembles instructions, product context, ICP, policies, account data, evidence, and workflow state into one context package, keeping each layer separate",
-      "Tests covering four required scenarios: a qualified account, an unqualified account, insufficient evidence, and a prompt injection attempt",
-      "No ADK agent and no external action (real email, CRM, web search, deployment) — this class is context only",
+      "config/products.yaml, config/icp.yaml, config/policies.yaml — at least two WidgetWare offerings with target buyers and approved claims; ICP fit dimensions (company size, preferred/excluded industries, regions, buying signals, required fields); and policies defining the five evidence classifications (verified_fact, derived_fact, inference, unknown, conflict), prohibited actions, and human-approval requirements",
+      "src/widgetware_sdr/instructions.py exposing get_system_instructions() — inspectable, observable instructions (not vague guidance) covering role, objective, allowed information, evidence classification, uncertainty handling, prohibited actions, stop conditions, and escalation",
+      "src/widgetware_sdr/context_builder.py exposing build_context(account, objective, evidence, state=None), returning five separate keys (system_instructions, business_context, task_context, retrieved_evidence, state) without mutating inputs, calling an LLM, or making network calls",
+      "Evidence records that preserve provenance (claim, classification, source, retrieved_at, excerpt); account notes and other task data are treated as untrusted and can never override instructions or policy",
+      "Four required scenario fixtures (qualified account, unqualified account, insufficient evidence, prompt injection attempt) with automated tests covering config, instructions, the context builder, and all four scenarios — all tests passing",
+      "No ADK agent, no LLM/Gemini calls, no web search, no email/CRM/social actions, no database persistence, and no deployment code — Class 3 is context only",
     ],
   },
   "class-04": {

@@ -184,10 +184,10 @@ export const multiProjectEvaluationResultSchema = z.discriminatedUnion("status",
 export type MultiProjectEvaluationResult = z.infer<typeof multiProjectEvaluationResultSchema>;
 
 // ---------------------------------------------------------------------------
-// Class-03 grading (WidgetWare SDR context package — see lib/graders/class-03.ts).
-// Another specialized, hardcoded-rubric grader like class-02's, but scored over
-// this assignment's own five components (config, instructions, context builder,
-// test scenarios, scope discipline) instead of class-02's four projects.
+// Class-03 grading (WidgetWare SDR context package — see lib/graders/class-03.ts
+// and SPEC.md, the authoritative spec students build against). Another
+// specialized, hardcoded-rubric grader like class-02's, but scored over this
+// assignment's own six components instead of class-02's four projects.
 // ---------------------------------------------------------------------------
 
 function componentScoreSchema(maxScore: number) {
@@ -202,9 +202,10 @@ function componentScoreSchema(maxScore: number) {
 // sum, not something an LLM should state or add up itself.
 export const class03EvaluationSchema = z.object({
   configFiles: componentScoreSchema(20),
-  instructions: componentScoreSchema(20),
-  contextBuilder: componentScoreSchema(25),
-  testScenarios: componentScoreSchema(25),
+  instructions: componentScoreSchema(15),
+  contextBuilder: componentScoreSchema(20),
+  evidenceAndSafety: componentScoreSchema(15),
+  scenariosAndTests: componentScoreSchema(20),
   scopeDiscipline: componentScoreSchema(10),
   bonus: z.object({
     score: z.number().min(0).max(10),
@@ -231,7 +232,8 @@ export const class03ResultSchema = z.object({
   configFiles: scoredComponentResultSchema(),
   instructions: scoredComponentResultSchema(),
   contextBuilder: scoredComponentResultSchema(),
-  testScenarios: scoredComponentResultSchema(),
+  evidenceAndSafety: scoredComponentResultSchema(),
+  scenariosAndTests: scoredComponentResultSchema(),
   scopeDiscipline: scoredComponentResultSchema(),
   bonus: z.object({
     score: z.number(),

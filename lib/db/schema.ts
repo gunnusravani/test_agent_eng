@@ -143,7 +143,7 @@ export const attempts = pgTable(
      * populated for these attempts (derived from overallScore) so grade display/results/
      * analytics need no special case; this column is purely for the detailed view.
      * A union rather than one shape because different specialized graders have entirely
-     * different component sets (class-02's four projects vs. class-03's five components).
+     * different component sets (class-02's four projects vs. class-03's six components).
      */
     structuredResult: jsonb("structured_result").$type<
       | {
@@ -163,7 +163,8 @@ export const attempts = pgTable(
           configFiles: { score: number; maxScore: number; feedback: string };
           instructions: { score: number; maxScore: number; feedback: string };
           contextBuilder: { score: number; maxScore: number; feedback: string };
-          testScenarios: { score: number; maxScore: number; feedback: string };
+          evidenceAndSafety: { score: number; maxScore: number; feedback: string };
+          scenariosAndTests: { score: number; maxScore: number; feedback: string };
           scopeDiscipline: { score: number; maxScore: number; feedback: string };
           bonus: { score: number; features: string[] };
           overallScore: number;

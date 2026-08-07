@@ -4,11 +4,15 @@ import { Progress } from "@/components/ui/progress";
 import { gradeColor, scoreToGrade } from "@/lib/grades";
 import type { Class03EvaluationResult, Class03Result } from "@/types/schemas";
 
-const COMPONENT_LABELS: Array<{ key: "configFiles" | "instructions" | "contextBuilder" | "testScenarios" | "scopeDiscipline"; label: string }> = [
+const COMPONENT_LABELS: Array<{
+  key: "configFiles" | "instructions" | "contextBuilder" | "evidenceAndSafety" | "scenariosAndTests" | "scopeDiscipline";
+  label: string;
+}> = [
   { key: "configFiles", label: "Config Files" },
   { key: "instructions", label: "Agent Instructions" },
   { key: "contextBuilder", label: "Context Builder" },
-  { key: "testScenarios", label: "Test Scenarios" },
+  { key: "evidenceAndSafety", label: "Evidence & Safety" },
+  { key: "scenariosAndTests", label: "Scenarios & Tests" },
   { key: "scopeDiscipline", label: "Scope Discipline" },
 ];
 
