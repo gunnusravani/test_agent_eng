@@ -460,10 +460,12 @@ interface StudentClassSummaryQueryRow extends Record<string, unknown> {
   class_id: string;
   class_slug: string;
   class_title: string;
+  class_order_index: number;
   max_score: number | null;
   latest_score: number | null;
   attempt_count: number;
   last_attempt_at: string;
+  class_rank: number;
   total_count: number;
 }
 
@@ -475,19 +477,24 @@ export interface StudentClassSummaryRow {
   classId: string;
   classSlug: string;
   classTitle: string;
+  classOrderIndex: number;
   maxScore: number | null;
   maxGrade: LetterGrade | null;
   latestScore: number | null;
   latestGrade: LetterGrade | null;
   attempts: number;
   lastAttemptAt: string;
+  /** This student's rank among everyone in this class, by latestScore descending (1 = top grader). Students with no successful attempt rank last. */
+  rank: number;
 }
 
 /**
  * One row per (student, class) they've submitted to — every submission, success or error, counts
  * toward `attempts`, but max/latest score+grade only reflect successful attempts (null if the
  * student has only ever errored on that class). Optionally filtered by a case-insensitive
- * substring match on githubUsername and/or a specific course/class.
+ * substring match on githubUsername and/or a specific course/class. Ordered class-wise (most
+ * recently added class first), then by rank within each class (top grader first) — this is the
+ * admin Students dashboard's default view.
  */
 export async function listStudentClassSummaries(params: {
   search?: string;
@@ -527,10 +534,12 @@ export async function listStudentClassSummaries(params: {
       c.id AS class_id,
       c.slug AS class_slug,
       c.title AS class_title,
+      c.order_index AS class_order_index,
       suc.max_score,
       suc.weighted_score AS latest_score,
       cnt.attempt_count,
       cnt.last_attempt_at,
+      RANK() OVER (PARTITION BY c.id ORDER BY suc.weighted_score DESC NULLS LAST)::int AS class_rank,
       COUNT(*) OVER()::int AS total_count
     FROM counts cnt
     JOIN students s ON s.id = cnt.student_id
@@ -538,7 +547,7 @@ export async function listStudentClassSummaries(params: {
     JOIN courses co ON co.id = c.course_id
     LEFT JOIN successful suc ON suc.student_id = cnt.student_id AND suc.class_id = cnt.class_id AND suc.rn = 1
     WHERE true ${searchFilter} ${courseFilter} ${classFilter}
-    ORDER BY cnt.last_attempt_at DESC
+    ORDER BY c.order_index DESC, class_rank ASC, s.github_username ASC
     LIMIT ${pageSize} OFFSET ${offset}
   `);
 
@@ -552,14 +561,128 @@ export async function listStudentClassSummaries(params: {
       classId: row.class_id,
       classSlug: row.class_slug,
       classTitle: row.class_title,
+      classOrderIndex: row.class_order_index,
       maxScore: row.max_score,
       maxGrade: row.max_score != null ? scoreToGrade(row.max_score) : null,
       latestScore: row.latest_score,
       latestGrade: row.latest_score != null ? scoreToGrade(row.latest_score) : null,
       attempts: row.attempt_count,
       lastAttemptAt: new Date(row.last_attempt_at).toISOString(),
+      rank: row.class_rank,
     })),
   };
+}
+
+interface LeaderboardQueryRow extends Record<string, unknown> {
+  class_id: string;
+  class_slug: string;
+  class_title: string;
+  class_order_index: number;
+  student_id: string;
+  github_username: string;
+  max_score: number;
+  latest_score: number;
+  attempt_count: number;
+  class_rank: number;
+}
+
+export interface LeaderboardEntry {
+  studentId: string;
+  githubUsername: string;
+  maxScore: number;
+  maxGrade: LetterGrade;
+  latestScore: number;
+  latestGrade: LetterGrade;
+  attempts: number;
+  rank: number;
+}
+
+export interface LeaderboardClass {
+  classId: string;
+  classSlug: string;
+  classTitle: string;
+  entries: LeaderboardEntry[];
+}
+
+/**
+ * Public, course-wide leaderboard: every student with at least one successful attempt, grouped by
+ * class (most recently added class first) and ranked by latestScore descending within each class.
+ * Unlike listStudentClassSummaries, students with only error attempts are omitted entirely — a
+ * leaderboard ranking on "no successful grade" isn't meaningful.
+ */
+export async function getClassLeaderboard(courseSlug: string): Promise<LeaderboardClass[]> {
+  const result = await db.execute<LeaderboardQueryRow>(sql`
+    WITH successful AS (
+      SELECT
+        a.student_id,
+        a.class_id,
+        a.weighted_score,
+        MAX(a.weighted_score) OVER (PARTITION BY a.student_id, a.class_id) AS max_score,
+        ROW_NUMBER() OVER (PARTITION BY a.student_id, a.class_id ORDER BY a.created_at DESC) AS rn
+      FROM attempts a
+      WHERE a.status = 'success'
+    ),
+    counts AS (
+      SELECT student_id, class_id, COUNT(*)::int AS attempt_count
+      FROM attempts
+      GROUP BY student_id, class_id
+    )
+    SELECT
+      c.id AS class_id,
+      c.slug AS class_slug,
+      c.title AS class_title,
+      c.order_index AS class_order_index,
+      s.id AS student_id,
+      s.github_username,
+      suc.max_score,
+      suc.weighted_score AS latest_score,
+      cnt.attempt_count,
+      RANK() OVER (PARTITION BY c.id ORDER BY suc.weighted_score DESC)::int AS class_rank
+    FROM successful suc
+    JOIN counts cnt ON cnt.student_id = suc.student_id AND cnt.class_id = suc.class_id
+    JOIN students s ON s.id = suc.student_id
+    JOIN classes c ON c.id = suc.class_id
+    JOIN courses co ON co.id = c.course_id
+    WHERE suc.rn = 1 AND co.slug = ${courseSlug}
+    ORDER BY c.order_index DESC, class_rank ASC, s.github_username ASC
+  `);
+
+  const byClass = new Map<string, LeaderboardClass>();
+  for (const row of result.rows) {
+    let group = byClass.get(row.class_id);
+    if (!group) {
+      group = { classId: row.class_id, classSlug: row.class_slug, classTitle: row.class_title, entries: [] };
+      byClass.set(row.class_id, group);
+    }
+    group.entries.push({
+      studentId: row.student_id,
+      githubUsername: row.github_username,
+      maxScore: row.max_score,
+      maxGrade: scoreToGrade(row.max_score),
+      latestScore: row.latest_score,
+      latestGrade: scoreToGrade(row.latest_score),
+      attempts: row.attempt_count,
+      rank: row.class_rank,
+    });
+  }
+  return [...byClass.values()];
+}
+
+export interface AttemptDetail {
+  attempt: Attempt;
+  classSlug: string;
+  classTitle: string;
+}
+
+/** Fetches one attempt by id along with its class context, for the "view previous submission" detail dialog. Returns null if the id doesn't exist. */
+export async function getAttemptById(attemptId: string): Promise<AttemptDetail | null> {
+  const [row] = await db
+    .select({ attempt: attempts, classSlug: classes.slug, classTitle: classes.title })
+    .from(attempts)
+    .innerJoin(classes, eq(classes.id, attempts.classId))
+    .where(eq(attempts.id, attemptId))
+    .limit(1);
+  return row ?? null;
 }
 
 export async function getStudentByUsername(githubUsername: string): Promise<Student | null> {

@@ -31,6 +31,7 @@ const SOURCE_EXTENSIONS = new Set([
   "py", "java", "c", "cpp", "cc", "h", "hpp",
   "go", "rs", "rb", "php", "cs", "swift", "kt",
   "html", "css", "scss", "sql", "sh", "json", "yaml", "yml",
+  "txt", "toml", "cfg", "ini", "env", "csv",
 ]);
 
 export function classifyFile(path: string): FileCategory {

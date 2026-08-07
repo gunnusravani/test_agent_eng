@@ -1,12 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { AttemptDetailDialog } from "@/components/evaluator/attempt-detail-dialog";
 import { gradeColor } from "@/lib/grades";
 import type { AttemptHistoryRow } from "@/types/schemas";
 
 export function AttemptHistoryTable({ rows }: { rows: AttemptHistoryRow[] }) {
+  const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(null);
+
   return (
     <Card>
       <CardHeader>
@@ -17,6 +21,7 @@ export function AttemptHistoryTable({ rows }: { rows: AttemptHistoryRow[] }) {
           <p className="text-sm text-muted-foreground">No previous runs.</p>
         ) : (
           <div className="overflow-x-auto">
+            <p className="mb-2 text-xs text-muted-foreground">Click a row to view the full submission.</p>
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
@@ -29,7 +34,11 @@ export function AttemptHistoryTable({ rows }: { rows: AttemptHistoryRow[] }) {
               </thead>
               <tbody>
                 {rows.map((row) => (
-                  <tr key={row.attemptId} className="border-b last:border-0">
+                  <tr
+                    key={row.attemptId}
+                    onClick={() => setSelectedAttemptId(row.attemptId)}
+                    className="cursor-pointer border-b last:border-0 hover:bg-muted/50"
+                  >
                     {/* toLocaleString() runs client-side, so this renders in the viewer's own local time zone. */}
                     <td className="py-1.5 pr-4 whitespace-nowrap tabular-nums">{new Date(row.createdAt).toLocaleString()}</td>
                     <td className="py-1.5 pr-4">{row.classTitle}</td>
@@ -64,6 +73,15 @@ export function AttemptHistoryTable({ rows }: { rows: AttemptHistoryRow[] }) {
           </div>
         )}
       </CardContent>
+
+      {selectedAttemptId && (
+        <AttemptDetailDialog
+          attemptId={selectedAttemptId}
+          onOpenChange={(open) => {
+            if (!open) setSelectedAttemptId(null);
+          }}
+        />
+      )}
     </Card>
   );
 }

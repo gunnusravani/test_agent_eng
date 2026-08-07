@@ -183,6 +183,86 @@ export const multiProjectEvaluationResultSchema = z.discriminatedUnion("status",
 
 export type MultiProjectEvaluationResult = z.infer<typeof multiProjectEvaluationResultSchema>;
 
+// ---------------------------------------------------------------------------
+// Class-03 grading (WidgetWare SDR context package — see lib/graders/class-03.ts).
+// Another specialized, hardcoded-rubric grader like class-02's, but scored over
+// this assignment's own five components (config, instructions, context builder,
+// test scenarios, scope discipline) instead of class-02's four projects.
+// ---------------------------------------------------------------------------
+
+function componentScoreSchema(maxScore: number) {
+  return z.object({
+    score: z.number().min(0).max(maxScore),
+    feedback: z.string(),
+  });
+}
+
+// Passed directly to generateObject() as the target schema for the class-03 grader.
+// maxScore/overallScore are deliberately absent — fixed constants and a server-computed
+// sum, not something an LLM should state or add up itself.
+export const class03EvaluationSchema = z.object({
+  configFiles: componentScoreSchema(20),
+  instructions: componentScoreSchema(20),
+  contextBuilder: componentScoreSchema(25),
+  testScenarios: componentScoreSchema(25),
+  scopeDiscipline: componentScoreSchema(10),
+  bonus: z.object({
+    score: z.number().min(0).max(10),
+    features: z.array(z.string()),
+  }),
+  pass: z.boolean(),
+  summary: z.string(),
+  strengths: z.array(z.string()),
+  improvements: z.array(z.string()),
+});
+
+export type Class03Evaluation = z.infer<typeof class03EvaluationSchema>;
+
+function scoredComponentResultSchema() {
+  return z.object({
+    score: z.number(),
+    maxScore: z.number(),
+    feedback: z.string(),
+  });
+}
+
+/** The LLM's output enriched server-side with each component's fixed maxScore and the computed overallScore. */
+export const class03ResultSchema = z.object({
+  configFiles: scoredComponentResultSchema(),
+  instructions: scoredComponentResultSchema(),
+  contextBuilder: scoredComponentResultSchema(),
+  testScenarios: scoredComponentResultSchema(),
+  scopeDiscipline: scoredComponentResultSchema(),
+  bonus: z.object({
+    score: z.number(),
+    features: z.array(z.string()),
+  }),
+  overallScore: z.number(),
+  pass: z.boolean(),
+  summary: z.string(),
+  strengths: z.array(z.string()),
+  improvements: z.array(z.string()),
+});
+
+export type Class03Result = z.infer<typeof class03ResultSchema>;
+
+export const class03EvaluationResultSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("success"),
+    classId: z.string(),
+    data: class03ResultSchema,
+    evaluatedAt: z.string(),
+    modelUsed: z.string(),
+  }),
+  z.object({
+    status: z.literal("error"),
+    classId: z.string(),
+    message: z.string(),
+  }),
+]);
+
+export type Class03EvaluationResult = z.infer<typeof class03EvaluationResultSchema>;
+
 export const courseSchema = z.object({
   id: z.string(),
   slug: z.string(),
@@ -256,7 +336,9 @@ export const evaluateResponseSchema = z.object({
   evaluation: assignmentEvaluationResultSchema.optional(),
   /** Populated for classes graded by a specialized multi-part grader (e.g. class-02); mutually exclusive with evaluation. */
   multiProjectResult: multiProjectEvaluationResultSchema.optional(),
-  /** Derived from the rubric-weighted average of evaluation.data.scores (or overallScore/10 for multiProjectResult) — the canonical score/grade. */
+  /** Populated for class-03 (WidgetWare context package grader); mutually exclusive with evaluation and multiProjectResult. */
+  class03Result: class03EvaluationResultSchema.optional(),
+  /** Derived from the rubric-weighted average of evaluation.data.scores (or overallScore/10 for multiProjectResult/class03Result) — the canonical score/grade. */
   weightedScore: z.number().nullable().optional(),
   files: classFilesSchema.optional(),
   resultsTable: z.array(resultsRowSchema).optional(),
@@ -406,15 +488,56 @@ export const adminStudentClassSummarySchema = z.object({
   classId: z.string(),
   classSlug: z.string(),
   classTitle: z.string(),
+  classOrderIndex: z.number(),
   maxScore: z.number().nullable(),
   maxGrade: assignmentEvaluationSchema.shape.overallGrade.nullable(),
   latestScore: z.number().nullable(),
   latestGrade: assignmentEvaluationSchema.shape.overallGrade.nullable(),
   attempts: z.number(),
   lastAttemptAt: z.string(),
+  rank: z.number(),
 });
 
 export type AdminStudentClassSummary = z.infer<typeof adminStudentClassSummarySchema>;
+
+/** One student's standing within one class on the public leaderboard. */
+export const leaderboardEntrySchema = z.object({
+  studentId: z.string(),
+  githubUsername: z.string(),
+  maxScore: z.number(),
+  maxGrade: assignmentEvaluationSchema.shape.overallGrade,
+  latestScore: z.number(),
+  latestGrade: assignmentEvaluationSchema.shape.overallGrade,
+  attempts: z.number(),
+  rank: z.number(),
+});
+
+export type LeaderboardEntryDto = z.infer<typeof leaderboardEntrySchema>;
+
+export const leaderboardClassSchema = z.object({
+  classId: z.string(),
+  classSlug: z.string(),
+  classTitle: z.string(),
+  entries: z.array(leaderboardEntrySchema),
+});
+
+export type LeaderboardClassDto = z.infer<typeof leaderboardClassSchema>;
+
+/** Full stored evaluation for one past attempt, reconstructed for the "view previous submission" dialog. */
+export const attemptDetailResponseSchema = z.object({
+  attemptId: z.string(),
+  classSlug: z.string(),
+  classTitle: z.string(),
+  repoUrl: z.string(),
+  commitSha: z.string(),
+  createdAt: z.string(),
+  weightedScore: z.number().nullable(),
+  evaluation: assignmentEvaluationResultSchema.optional(),
+  multiProjectResult: multiProjectEvaluationResultSchema.optional(),
+  class03Result: class03EvaluationResultSchema.optional(),
+});
+
+export type AttemptDetailResponse = z.infer<typeof attemptDetailResponseSchema>;
 
 // ---------------------------------------------------------------------------
 // Admin analytics dashboard

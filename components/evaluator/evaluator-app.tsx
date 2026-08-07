@@ -10,11 +10,13 @@ import { LoadingSkeleton } from "@/components/evaluator/loading-skeleton";
 import { ResultsLookupForm } from "@/components/evaluator/results-lookup-form";
 import { ResultsTable } from "@/components/evaluator/results-table";
 import { AttemptHistoryTable } from "@/components/evaluator/attempt-history-table";
+import { ClassLeaderboard } from "@/components/evaluator/class-leaderboard";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import type {
   AssignmentEvaluationResult,
   AttemptHistoryRow,
+  Class03EvaluationResult,
   ClassFilesDto,
   EvaluateResponse,
   MultiProjectEvaluationResult,
@@ -31,6 +33,7 @@ type EvaluatorState =
       validation: ValidationResult;
       evaluation?: AssignmentEvaluationResult;
       multiProjectResult?: MultiProjectEvaluationResult;
+      class03Result?: Class03EvaluationResult;
       weightedScore: number | null;
       files?: ClassFilesDto;
       resultsTable: ResultsRow[];
@@ -76,7 +79,7 @@ export function EvaluatorApp() {
 
       const data = (await response.json()) as EvaluateResponse;
 
-      if (!data.validation.valid || (!data.evaluation && !data.multiProjectResult)) {
+      if (!data.validation.valid || (!data.evaluation && !data.multiProjectResult && !data.class03Result)) {
         setState({ status: "invalid", validation: data.validation });
         return;
       }
@@ -86,6 +89,7 @@ export function EvaluatorApp() {
         validation: data.validation,
         evaluation: data.evaluation,
         multiProjectResult: data.multiProjectResult,
+        class03Result: data.class03Result,
         weightedScore: data.weightedScore ?? null,
         files: data.files,
         resultsTable: data.resultsTable ?? [],
@@ -173,6 +177,7 @@ export function EvaluatorApp() {
             validation={state.validation}
             evaluation={state.evaluation}
             multiProjectResult={state.multiProjectResult}
+            class03Result={state.class03Result}
             weightedScore={state.weightedScore}
             classTitle={state.classTitle}
             files={state.files}
@@ -191,6 +196,17 @@ export function EvaluatorApp() {
         {lookupResults && <ResultsTable rows={lookupResults} />}
         {lookupHistory && <AttemptHistoryTable rows={lookupHistory} />}
       </div>
+
+      {courseSlug && (
+        <>
+          <Separator />
+          <div id="leaderboard" className="scroll-mt-20 space-y-3">
+            <h2 className="text-lg font-semibold">Class Leaderboard</h2>
+            <p className="text-sm text-muted-foreground">Every student&apos;s standing, class by class, top grader first.</p>
+            <ClassLeaderboard courseSlug={courseSlug} />
+          </div>
+        </>
+      )}
     </div>
   );
 }

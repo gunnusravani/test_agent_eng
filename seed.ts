@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "./lib/db/client";
 import { classes, assignmentVersions } from "./lib/db/schema";
 import { createCourse, createClass, createAssignmentVersionAndActivate, getCourseBySlug } from "./lib/db/queries";
@@ -38,12 +38,15 @@ const assignments: Record<string, SeedAssignment> = {
     ],
   },
   "class-03": {
-    title: "Algorithms: Sorting & Searching",
-    objective: "Implement classic sorting and searching algorithms and compare their performance.",
+    title: "Build the WidgetWare SDR Context Package",
+    objective:
+      "Build the separated context layers an SDR agent will need — WITHOUT building the agent itself yet. Create the business configuration, agent instructions, and a context builder that assembles them, then prove it works with test scenarios. No ADK agent, Gemini calls, email/CRM/web-search integration, or deployment happens in this class — that's Class 4.",
     expectedDeliverables: [
-      "At least two sorting algorithms implemented from scratch",
-      "A binary search or equivalent search implementation",
-      "Basic benchmarking or Big-O analysis of the implementations",
+      "Config files at my-work/class-03/config/: products.yaml, icp.yaml, policies.yaml — stable WidgetWare business rules (product info, Ideal Customer Profile, SDR policies)",
+      "Agent instructions at my-work/class-03/src/widgetware_sdr/instructions.py defining the agent's role, evidence rules, safety boundaries, and escalation behavior",
+      "A context builder at my-work/class-03/src/widgetware_sdr/context_builder.py that assembles instructions, product context, ICP, policies, account data, evidence, and workflow state into one context package, keeping each layer separate",
+      "Tests covering four required scenarios: a qualified account, an unqualified account, insufficient evidence, and a prompt injection attempt",
+      "No ADK agent and no external action (real email, CRM, web search, deployment) — this class is context only",
     ],
   },
   "class-04": {
@@ -154,13 +157,14 @@ async function main() {
       console.log(`  Class ${classId} already exists`);
     }
 
-    const [existingVersion] = await db
+    const [latestVersion] = await db
       .select()
       .from(assignmentVersions)
-      .where(and(eq(assignmentVersions.classId, classRow.id), eq(assignmentVersions.versionNumber, 1)))
+      .where(eq(assignmentVersions.classId, classRow.id))
+      .orderBy(sql`${assignmentVersions.versionNumber} desc`)
       .limit(1);
 
-    if (!existingVersion) {
+    if (!latestVersion) {
       await createAssignmentVersionAndActivate({
         classId: classRow.id,
         versionNumber: 1,
@@ -172,10 +176,14 @@ async function main() {
       });
       console.log(`  Created + activated v1 for ${classId}`);
     } else if (!classRow.currentAssignmentVersionId) {
-      await db.update(classes).set({ currentAssignmentVersionId: existingVersion.id }).where(eq(classes.id, classRow.id));
-      console.log(`  Re-activated existing v1 for ${classId}`);
+      await db.update(classes).set({ currentAssignmentVersionId: latestVersion.id }).where(eq(classes.id, classRow.id));
+      console.log(`  Re-activated existing v${latestVersion.versionNumber} for ${classId}`);
     } else {
-      console.log(`  v1 already exists for ${classId}`);
+      // Intentionally a no-op once a version exists and is active, even if `assignments` above
+      // has since been edited — this script is a one-time bootstrap, not a sync job. Content
+      // changes after the first seed go through the admin "edit assignment" flow (which is what
+      // publishes a new version and reactivates it), not another run of this script.
+      console.log(`  v${latestVersion.versionNumber} already exists for ${classId}`);
     }
   }
 

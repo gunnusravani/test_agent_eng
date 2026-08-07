@@ -2,21 +2,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { gradeColor, scoreToGrade } from "@/lib/grades";
-import type { MultiProjectEvaluationResult, MultiProjectResult } from "@/types/schemas";
+import type { Class03EvaluationResult, Class03Result } from "@/types/schemas";
 
-const PROJECT_LABELS: Array<{ key: "newsHighlights" | "conferenceWebsite" | "mockStubs" | "pomodoroTimer"; label: string }> = [
-  { key: "newsHighlights", label: "News Highlights" },
-  { key: "conferenceWebsite", label: "Conference Website" },
-  { key: "mockStubs", label: "Mock Stubs" },
-  { key: "pomodoroTimer", label: "Pomodoro Timer" },
+const COMPONENT_LABELS: Array<{ key: "configFiles" | "instructions" | "contextBuilder" | "testScenarios" | "scopeDiscipline"; label: string }> = [
+  { key: "configFiles", label: "Config Files" },
+  { key: "instructions", label: "Agent Instructions" },
+  { key: "contextBuilder", label: "Context Builder" },
+  { key: "testScenarios", label: "Test Scenarios" },
+  { key: "scopeDiscipline", label: "Scope Discipline" },
 ];
 
-export function MultiProjectResultCard({
+export function Class03ResultCard({
   evaluation,
   weightedScore,
   classTitle,
 }: {
-  evaluation: MultiProjectEvaluationResult;
+  evaluation: Class03EvaluationResult;
   weightedScore: number | null;
   classTitle: string;
 }) {
@@ -45,12 +46,10 @@ export function MultiProjectResultCard({
             <p className="text-sm">{evaluation.data.summary}</p>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              {PROJECT_LABELS.map(({ key, label }) => (
-                <ProjectScore key={key} label={label} project={evaluation.data[key]} />
+              {COMPONENT_LABELS.map(({ key, label }) => (
+                <ComponentScore key={key} label={label} component={evaluation.data[key]} />
               ))}
             </div>
-
-            <ProjectScore label="README" project={evaluation.data.readme} />
 
             {evaluation.data.bonus.features.length > 0 && (
               <div className="space-y-1.5">
@@ -79,17 +78,17 @@ export function MultiProjectResultCard({
   );
 }
 
-function ProjectScore({ label, project }: { label: string; project: MultiProjectResult["readme"] }) {
+function ComponentScore({ label, component }: { label: string; component: Class03Result["configFiles"] }) {
   return (
     <div className="space-y-1.5 rounded-lg border p-3">
       <div className="flex items-baseline justify-between text-sm">
         <span className="font-medium">{label}</span>
         <span className="tabular-nums text-muted-foreground">
-          {project.score} / {project.maxScore}
+          {component.score} / {component.maxScore}
         </span>
       </div>
-      <Progress value={(project.score / project.maxScore) * 100} />
-      <p className="text-xs text-muted-foreground">{project.feedback}</p>
+      <Progress value={(component.score / component.maxScore) * 100} />
+      <p className="text-xs text-muted-foreground">{component.feedback}</p>
     </div>
   );
 }
@@ -98,7 +97,7 @@ function StatusBadge({
   evaluation,
   weightedScore,
 }: {
-  evaluation: MultiProjectEvaluationResult;
+  evaluation: Class03EvaluationResult;
   weightedScore: number | null;
 }) {
   if (evaluation.status === "error") {

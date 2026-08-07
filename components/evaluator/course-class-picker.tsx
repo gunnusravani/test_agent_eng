@@ -85,7 +85,7 @@ export function CourseClassPicker({
           </option>
           {classes.map((c) => (
             <option key={c.slug} value={c.slug}>
-              {c.title}
+              {c.slug}: {c.title}
             </option>
           ))}
         </select>

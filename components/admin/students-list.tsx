@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -121,9 +121,9 @@ export function StudentsList() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left text-muted-foreground">
+                    <th className="py-1.5 pr-4 font-medium">Rank</th>
                     <th className="py-1.5 pr-4 font-medium">GitHub Username</th>
                     <th className="py-1.5 pr-4 font-medium">Course</th>
-                    <th className="py-1.5 pr-4 font-medium">Class</th>
                     <th className="py-1.5 pr-4 font-medium">Max Grade</th>
                     <th className="py-1.5 pr-4 font-medium">Latest Grade</th>
                     <th className="py-1.5 pr-4 font-medium">Attempts</th>
@@ -131,25 +131,39 @@ export function StudentsList() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => (
-                    <tr key={`${row.studentId}-${row.classId}`} className="border-b last:border-0">
-                      <td className="py-1.5 pr-4">
-                        <Link href={`/admin/students/${row.githubUsername}`} className="hover:underline">
-                          {row.githubUsername}
-                        </Link>
-                      </td>
-                      <td className="py-1.5 pr-4 text-muted-foreground">{row.courseTitle}</td>
-                      <td className="py-1.5 pr-4 text-muted-foreground">{row.classTitle}</td>
-                      <td className={`py-1.5 pr-4 font-medium ${row.maxGrade ? gradeColor(row.maxGrade) : ""}`}>
-                        {row.maxGrade ?? "—"}
-                      </td>
-                      <td className={`py-1.5 pr-4 font-medium ${row.latestGrade ? gradeColor(row.latestGrade) : ""}`}>
-                        {row.latestGrade ?? "—"}
-                      </td>
-                      <td className="py-1.5 pr-4 tabular-nums">{row.attempts}</td>
-                      <td className="py-1.5 whitespace-nowrap tabular-nums">{new Date(row.lastAttemptAt).toLocaleString()}</td>
-                    </tr>
-                  ))}
+                  {rows.map((row, i) => {
+                    const isNewClassGroup = i === 0 || rows[i - 1].classId !== row.classId;
+                    return (
+                      <Fragment key={`${row.studentId}-${row.classId}`}>
+                        {isNewClassGroup && (
+                          <tr key={`group-${row.classId}`} className="border-b bg-muted/40">
+                            <td colSpan={7} className="py-1.5 pr-4 font-medium">
+                              {row.classTitle}
+                            </td>
+                          </tr>
+                        )}
+                        <tr key={`${row.studentId}-${row.classId}`} className="border-b last:border-0">
+                          <td className="py-1.5 pr-4 tabular-nums text-muted-foreground">
+                            {row.maxScore != null ? (row.rank === 1 ? "🏆 1" : row.rank) : "—"}
+                          </td>
+                          <td className="py-1.5 pr-4">
+                            <Link href={`/admin/students/${row.githubUsername}`} className="hover:underline">
+                              {row.githubUsername}
+                            </Link>
+                          </td>
+                          <td className="py-1.5 pr-4 text-muted-foreground">{row.courseTitle}</td>
+                          <td className={`py-1.5 pr-4 font-medium ${row.maxGrade ? gradeColor(row.maxGrade) : ""}`}>
+                            {row.maxGrade ?? "—"}
+                          </td>
+                          <td className={`py-1.5 pr-4 font-medium ${row.latestGrade ? gradeColor(row.latestGrade) : ""}`}>
+                            {row.latestGrade ?? "—"}
+                          </td>
+                          <td className="py-1.5 pr-4 tabular-nums">{row.attempts}</td>
+                          <td className="py-1.5 whitespace-nowrap tabular-nums">{new Date(row.lastAttemptAt).toLocaleString()}</td>
+                        </tr>
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

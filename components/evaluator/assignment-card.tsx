@@ -43,20 +43,16 @@ export function AssignmentCard({
               <ScoreBar label="Understanding" score={evaluation.data.scores.understanding} />
             </div>
 
-            <Accordion defaultValue={[]}>
-              <AccordionItem value="feedback">
-                <AccordionTrigger>LLM Feedback</AccordionTrigger>
-                <AccordionContent>
-                  <div className="space-y-3 text-sm">
-                    <p>{evaluation.data.feedback.summary}</p>
-                    <FeedbackList title="Strengths" items={evaluation.data.feedback.strengths} />
-                    <FeedbackList title="Weaknesses" items={evaluation.data.feedback.weaknesses} />
-                    <FeedbackList title="Missing Features" items={evaluation.data.feedback.missingFeatures} />
-                    <FeedbackList title="Recommendations" items={evaluation.data.feedback.recommendations} />
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+            <div className="space-y-3">
+              <div className="text-sm font-medium">LLM Feedback</div>
+              <div className="space-y-3 text-sm">
+                <p>{evaluation.data.feedback.summary}</p>
+                <FeedbackList title="Strengths" items={evaluation.data.feedback.strengths} />
+                <FeedbackList title="Weaknesses" items={evaluation.data.feedback.weaknesses} />
+                <FeedbackList title="Missing Features" items={evaluation.data.feedback.missingFeatures} />
+                <FeedbackList title="Recommendations" items={evaluation.data.feedback.recommendations} />
+              </div>
+            </div>
           </>
         )}
 

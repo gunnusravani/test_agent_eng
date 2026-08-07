@@ -3,9 +3,11 @@ import { GitHubError } from "@/lib/errors";
 import { evaluateAssignment, MODEL_NAME } from "@/lib/evaluator";
 import { fetchRepository, findMyWorkPath, findReadme, getRepoTree, hasClassDirectory, parseGitHubUrl, resolveBranchSha } from "@/lib/github";
 import { gatherClassFiles } from "@/lib/parser";
-import { scoreToGrade, weightedAverage } from "@/lib/grades";
+import { weightedAverage } from "@/lib/grades";
 import { PROMPT_VERSION } from "@/lib/prompts";
 import { evaluateClass02Assignment, isMultiProjectClass } from "@/lib/graders/class-02";
+import { evaluateClass03Assignment, isClass03 } from "@/lib/graders/class-03";
+import { attemptToClass03Result, attemptToEvaluationResult, attemptToMultiProjectResult } from "@/lib/attempt-transform";
 import {
   findExistingAttempt,
   getAttemptHistoryForStudent,
@@ -14,63 +16,11 @@ import {
   getResultsForStudent,
   insertAttempt,
 } from "@/lib/db/queries";
-import type { Attempt } from "@/lib/db/schema";
-import {
-  evaluateRequestSchema,
-  type AssignmentEvaluationResult,
-  type ForkCheck,
-  type MultiProjectEvaluationResult,
-  type ValidationResult,
-} from "@/types/schemas";
+import { evaluateRequestSchema, type ForkCheck, type ValidationResult } from "@/types/schemas";
 import type { AssignmentConfig } from "@/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
-
-/**
- * Reconstructs the API response shape for a resubmission that matched an existing attempt
- * exactly (same commit, class, assignment version, prompt version, model — see
- * findExistingAttempt). The LLM's own raw overallGrade isn't persisted on attempts (the app
- * always derives the canonical grade from weightedScore, see lib/grades.ts), so it's
- * recomputed the same way here; nothing downstream reads this field directly.
- */
-function attemptToEvaluationResult(attempt: Attempt, classSlug: string): AssignmentEvaluationResult {
-  if (attempt.status === "error") {
-    return { status: "error", classId: classSlug, message: attempt.errorMessage ?? "Unknown error" };
-  }
-  return {
-    status: "success",
-    classId: classSlug,
-    data: {
-      scores: {
-        completeness: attempt.completeness!,
-        correctness: attempt.correctness!,
-        quality: attempt.quality!,
-        novelty: attempt.novelty!,
-        understanding: attempt.understanding!,
-      },
-      overallGrade: scoreToGrade(attempt.weightedScore ?? 0),
-      confidence: attempt.confidence!,
-      feedback: attempt.feedbackJson!,
-    },
-    evaluatedAt: attempt.createdAt.toISOString(),
-    modelUsed: attempt.modelName,
-  };
-}
-
-/** Same idea as attemptToEvaluationResult, for classes graded by a specialized multi-part grader. */
-function attemptToMultiProjectResult(attempt: Attempt, classSlug: string): MultiProjectEvaluationResult {
-  if (attempt.status === "error") {
-    return { status: "error", classId: classSlug, message: attempt.errorMessage ?? "Unknown error" };
-  }
-  return {
-    status: "success",
-    classId: classSlug,
-    data: attempt.structuredResult!,
-    evaluatedAt: attempt.createdAt.toISOString(),
-    modelUsed: attempt.modelName,
-  };
-}
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -86,6 +36,7 @@ export async function POST(request: Request) {
   }
   const { courseSlug, classSlug, repoUrl } = parsed.data;
   const isMultiProject = isMultiProjectClass(classSlug);
+  const isClass03Grade = isClass03(classSlug);
 
   const lookup = await getClassForEvaluation(courseSlug, classSlug);
   if (!lookup) {
@@ -160,7 +111,9 @@ export async function POST(request: Request) {
         validation,
         ...(isMultiProject
           ? { multiProjectResult: attemptToMultiProjectResult(existingAttempt, classSlug) }
-          : { evaluation: attemptToEvaluationResult(existingAttempt, classSlug) }),
+          : isClass03Grade
+            ? { class03Result: attemptToClass03Result(existingAttempt, classSlug) }
+            : { evaluation: attemptToEvaluationResult(existingAttempt, classSlug) }),
         weightedScore: existingAttempt.weightedScore,
         resultsTable,
         attemptHistory,
@@ -198,6 +151,31 @@ export async function POST(request: Request) {
       const attemptHistory = await getAttemptHistoryForStudent(owner, courseSlug);
 
       return NextResponse.json({ validation, multiProjectResult: evaluation, weightedScore, resultsTable, attemptHistory });
+    }
+
+    if (isClass03Grade) {
+      const evaluation = await evaluateClass03Assignment({ assignment: assignmentConfig, owner, repo, tree, myWorkPath: myWorkPath! });
+      const weightedScore = evaluation.status === "success" ? Math.min(evaluation.data.overallScore, 100) / 10 : null;
+
+      await insertAttempt({
+        studentId: student.id,
+        classId: classRow.id,
+        assignmentVersionId: assignmentVersion.id,
+        repoUrl,
+        commitSha,
+        status: evaluation.status,
+        weightedScore,
+        confidence: null,
+        structuredResult: evaluation.status === "success" ? evaluation.data : undefined,
+        errorMessage: evaluation.status === "error" ? evaluation.message : null,
+        promptVersion: PROMPT_VERSION,
+        modelName: MODEL_NAME,
+      });
+
+      const resultsTable = await getResultsForStudent(owner, courseSlug);
+      const attemptHistory = await getAttemptHistoryForStudent(owner, courseSlug);
+
+      return NextResponse.json({ validation, class03Result: evaluation, weightedScore, resultsTable, attemptHistory });
     }
 
     const gathered = await gatherClassFiles({ owner, repo, tree, classId: classSlug, myWorkPath: myWorkPath! });
