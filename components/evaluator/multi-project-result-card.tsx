@@ -39,7 +39,6 @@ export function MultiProjectResultCard({
                 Overall: <span className="font-medium text-foreground">{evaluation.data.overallScore}</span> / 100
                 {evaluation.data.bonus.score > 0 ? ` (+${evaluation.data.bonus.score} bonus)` : ""}
               </span>
-              <Badge variant={evaluation.data.pass ? "default" : "destructive"}>{evaluation.data.pass ? "Pass" : "Not Passing"}</Badge>
             </div>
 
             <p className="text-sm">{evaluation.data.summary}</p>
