@@ -502,6 +502,20 @@ export const adminStudentClassSummarySchema = z.object({
 
 export type AdminStudentClassSummary = z.infer<typeof adminStudentClassSummarySchema>;
 
+/** One (student, class) pair to re-check — the worklist behind the admin's "Regrade All" button. repoUrl is the student's most recent submission for that class. */
+export const regradeQueueItemSchema = z.object({
+  studentId: z.string(),
+  githubUsername: z.string(),
+  courseSlug: z.string(),
+  classId: z.string(),
+  classSlug: z.string(),
+  classTitle: z.string(),
+  repoUrl: z.string(),
+  lastAttemptAt: z.string(),
+});
+
+export type RegradeQueueItem = z.infer<typeof regradeQueueItemSchema>;
+
 /** One student's standing within one class on the public leaderboard. */
 export const leaderboardEntrySchema = z.object({
   studentId: z.string(),

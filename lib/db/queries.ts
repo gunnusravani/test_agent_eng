@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import { PASSING_SCORE_THRESHOLD, scoreToGrade } from "@/lib/grades";
-import type { AttemptHistoryRow, DashboardAnalytics, LetterGrade, ResultsRow } from "@/types/schemas";
+import type { AttemptHistoryRow, DashboardAnalytics, LetterGrade, RegradeQueueItem, ResultsRow } from "@/types/schemas";
 import { db } from "./client";
 import {
   courses,
@@ -692,6 +692,62 @@ export async function getStudentByUsername(githubUsername: string): Promise<Stud
     .where(eq(students.githubUsernameLower, githubUsername.toLowerCase()))
     .limit(1);
   return student ?? null;
+}
+
+interface RegradeQueueQueryRow extends Record<string, unknown> {
+  student_id: string;
+  github_username: string;
+  course_slug: string;
+  class_id: string;
+  class_slug: string;
+  class_title: string;
+  class_order_index: number;
+  repo_url: string;
+  last_attempt_at: string;
+}
+
+/**
+ * One row per (student, class) that has ever had an attempt against a currently-published class —
+ * the worklist behind the admin's "Regrade All" button. repoUrl comes from each pair's most
+ * recent attempt (including a last attempt that errored, since whatever failed before might be
+ * fixed now) — this is deliberately the only source of "the student's repo URL", there is no
+ * separate canonical field for it. Archived classes are excluded via the status filter, same as
+ * every other student-facing query in this file.
+ */
+export async function getRegradeQueue(): Promise<RegradeQueueItem[]> {
+  const result = await db.execute<RegradeQueueQueryRow>(sql`
+    SELECT DISTINCT ON (a.student_id, a.class_id)
+      a.student_id,
+      s.github_username,
+      co.slug AS course_slug,
+      a.class_id,
+      c.slug AS class_slug,
+      c.title AS class_title,
+      c.order_index AS class_order_index,
+      a.repo_url,
+      a.created_at AS last_attempt_at
+    FROM attempts a
+    JOIN students s ON s.id = a.student_id
+    JOIN classes c ON c.id = a.class_id
+    JOIN courses co ON co.id = c.course_id
+    WHERE c.status = 'published' AND co.status = 'published'
+    ORDER BY a.student_id, a.class_id, a.created_at DESC
+  `);
+
+  const sortedRows = [...result.rows].sort(
+    (a, b) => b.class_order_index - a.class_order_index || a.github_username.localeCompare(b.github_username),
+  );
+
+  return sortedRows.map((row) => ({
+    studentId: row.student_id,
+    githubUsername: row.github_username,
+    courseSlug: row.course_slug,
+    classId: row.class_id,
+    classSlug: row.class_slug,
+    classTitle: row.class_title,
+    repoUrl: row.repo_url,
+    lastAttemptAt: new Date(row.last_attempt_at).toISOString(),
+  }));
 }
 
 // ---------------------------------------------------------------------------

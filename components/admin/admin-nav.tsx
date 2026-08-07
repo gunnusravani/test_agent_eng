@@ -10,6 +10,7 @@ const NAV_LINKS = [
   { href: "/admin", label: "Dashboard", exact: true },
   { href: "/admin/courses", label: "Courses", exact: false },
   { href: "/admin/students", label: "Students", exact: false },
+  { href: "/admin/regrade", label: "Regrade All", exact: false },
 ];
 
 export function AdminNav() {
