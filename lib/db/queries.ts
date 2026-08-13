@@ -199,11 +199,15 @@ export async function insertAttempt(input: InsertAttemptInput): Promise<Attempt>
 }
 
 /**
- * Looks for a prior attempt at the exact same (student, class, commit, assignment version,
- * prompt version, model) combination — i.e. nothing has changed since the last submission of
- * this exact code under these exact grading criteria. Callers use this to skip re-running the
- * LLM and creating a duplicate row on a no-op resubmit; a new commit, a new assignment version,
- * a bumped prompt version, or a different model still always produces a fresh attempt.
+ * Looks for a prior *successful* attempt at the exact same (student, class, commit, assignment
+ * version, prompt version, model) combination — i.e. nothing has changed since the last graded
+ * submission of this exact code under these exact grading criteria. Callers use this to skip
+ * re-running the LLM and creating a duplicate row on a no-op resubmit; a new commit, a new
+ * assignment version, a bumped prompt version, or a different model still always produces a
+ * fresh attempt. Deliberately excludes errored attempts: a transient failure (API outage, rate
+ * limit, no credits) isn't a graded result, so it must never be served back as one — the student
+ * would be stuck forever behind a stale error with no way to retry. Every resubmit after an
+ * error gets a fresh evaluation attempt, even on an unchanged commit.
  */
 export async function findExistingAttempt(params: {
   studentId: string;
@@ -224,6 +228,7 @@ export async function findExistingAttempt(params: {
         eq(attempts.assignmentVersionId, params.assignmentVersionId),
         eq(attempts.promptVersion, params.promptVersion),
         eq(attempts.modelName, params.modelName),
+        eq(attempts.status, "success"),
       ),
     )
     .orderBy(sql`${attempts.createdAt} desc`)
