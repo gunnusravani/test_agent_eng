@@ -1,6 +1,14 @@
 import { scoreToGrade } from "@/lib/grades";
 import type { Attempt } from "@/lib/db/schema";
-import type { AssignmentEvaluationResult, Class03EvaluationResult, Class03Result, MultiProjectEvaluationResult, MultiProjectResult } from "@/types/schemas";
+import type {
+  AssignmentEvaluationResult,
+  Class02aEvaluationResult,
+  Class02aResult,
+  Class03EvaluationResult,
+  Class03Result,
+  MultiProjectEvaluationResult,
+  MultiProjectResult,
+} from "@/types/schemas";
 
 /**
  * Reconstructs the API response shape for a stored attempt (a same-commit resubmission, or a
@@ -55,6 +63,20 @@ export function attemptToClass03Result(attempt: Attempt, classSlug: string): Cla
     status: "success",
     classId: classSlug,
     data: attempt.structuredResult! as Class03Result,
+    evaluatedAt: attempt.createdAt.toISOString(),
+    modelUsed: attempt.modelName,
+  };
+}
+
+/** Same idea as attemptToEvaluationResult, for class-02a (WidgetWare Renewal Desk skill grader). */
+export function attemptToClass02aResult(attempt: Attempt, classSlug: string): Class02aEvaluationResult {
+  if (attempt.status === "error") {
+    return { status: "error", classId: classSlug, message: attempt.errorMessage ?? "Unknown error" };
+  }
+  return {
+    status: "success",
+    classId: classSlug,
+    data: attempt.structuredResult! as Class02aResult,
     evaluatedAt: attempt.createdAt.toISOString(),
     modelUsed: attempt.modelName,
   };

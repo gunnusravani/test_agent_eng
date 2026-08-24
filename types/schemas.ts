@@ -265,6 +265,51 @@ export const class03EvaluationResultSchema = z.discriminatedUnion("status", [
 
 export type Class03EvaluationResult = z.infer<typeof class03EvaluationResultSchema>;
 
+// ---------------------------------------------------------------------------
+// Class-02A grading (WidgetWare Renewal Desk skill authoring — see
+// lib/graders/class-02a.ts). Unlike class-02/class-03, this rubric is entirely
+// mechanical (TODO/length/keyword/path/file-existence checks against the repo tree)
+// with no code execution and no LLM call involved, so its result is a flat list of
+// scored checks rather than LLM-scored components.
+// ---------------------------------------------------------------------------
+
+export const class02aCheckSchema = z.object({
+  name: z.string(),
+  passed: z.boolean(),
+  points: z.number(),
+  maxPoints: z.number(),
+  feedback: z.string(),
+});
+
+export type Class02aCheck = z.infer<typeof class02aCheckSchema>;
+
+export const class02aResultSchema = z.object({
+  checks: z.array(class02aCheckSchema),
+  overallScore: z.number(),
+  maxScore: z.number(),
+  pass: z.boolean(),
+  summary: z.string(),
+});
+
+export type Class02aResult = z.infer<typeof class02aResultSchema>;
+
+export const class02aEvaluationResultSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("success"),
+    classId: z.string(),
+    data: class02aResultSchema,
+    evaluatedAt: z.string(),
+    modelUsed: z.string(),
+  }),
+  z.object({
+    status: z.literal("error"),
+    classId: z.string(),
+    message: z.string(),
+  }),
+]);
+
+export type Class02aEvaluationResult = z.infer<typeof class02aEvaluationResultSchema>;
+
 export const courseSchema = z.object({
   id: z.string(),
   slug: z.string(),
@@ -340,7 +385,9 @@ export const evaluateResponseSchema = z.object({
   multiProjectResult: multiProjectEvaluationResultSchema.optional(),
   /** Populated for class-03 (WidgetWare context package grader); mutually exclusive with evaluation and multiProjectResult. */
   class03Result: class03EvaluationResultSchema.optional(),
-  /** Derived from the rubric-weighted average of evaluation.data.scores (or overallScore/10 for multiProjectResult/class03Result) — the canonical score/grade. */
+  /** Populated for class-02a (WidgetWare Renewal Desk skill grader); mutually exclusive with the other result fields. */
+  class02aResult: class02aEvaluationResultSchema.optional(),
+  /** Derived from the rubric-weighted average of evaluation.data.scores (or overallScore/10 for multiProjectResult/class03Result/class02aResult) — the canonical score/grade. */
   weightedScore: z.number().nullable().optional(),
   files: classFilesSchema.optional(),
   resultsTable: z.array(resultsRowSchema).optional(),
@@ -551,6 +598,7 @@ export const attemptDetailResponseSchema = z.object({
   evaluation: assignmentEvaluationResultSchema.optional(),
   multiProjectResult: multiProjectEvaluationResultSchema.optional(),
   class03Result: class03EvaluationResultSchema.optional(),
+  class02aResult: class02aEvaluationResultSchema.optional(),
 });
 
 export type AttemptDetailResponse = z.infer<typeof attemptDetailResponseSchema>;

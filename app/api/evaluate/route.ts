@@ -7,7 +7,8 @@ import { weightedAverage } from "@/lib/grades";
 import { PROMPT_VERSION } from "@/lib/prompts";
 import { evaluateClass02Assignment, isMultiProjectClass } from "@/lib/graders/class-02";
 import { evaluateClass03Assignment, isClass03 } from "@/lib/graders/class-03";
-import { attemptToClass03Result, attemptToEvaluationResult, attemptToMultiProjectResult } from "@/lib/attempt-transform";
+import { evaluateClass02aAssignment, isClass02a } from "@/lib/graders/class-02a";
+import { attemptToClass02aResult, attemptToClass03Result, attemptToEvaluationResult, attemptToMultiProjectResult } from "@/lib/attempt-transform";
 import {
   findExistingAttempt,
   getAttemptHistoryForStudent,
@@ -37,6 +38,11 @@ export async function POST(request: Request) {
   const { courseSlug, classSlug, repoUrl } = parsed.data;
   const isMultiProject = isMultiProjectClass(classSlug);
   const isClass03Grade = isClass03(classSlug);
+  const isClass02aGrade = isClass02a(classSlug);
+  // class-02a never calls an LLM, so it gets its own fixed cache key instead of the OpenAI
+  // model name — otherwise the idempotency lookup below (keyed in part on modelName) would
+  // never match a prior class-02a attempt and every resubmit would re-run the sandboxed pytest.
+  const modelNameForClass = isClass02aGrade ? "deterministic" : MODEL_NAME;
 
   const lookup = await getClassForEvaluation(courseSlug, classSlug);
   if (!lookup) {
@@ -101,7 +107,7 @@ export async function POST(request: Request) {
       commitSha,
       assignmentVersionId: assignmentVersion.id,
       promptVersion: PROMPT_VERSION,
-      modelName: MODEL_NAME,
+      modelName: modelNameForClass,
     });
 
     if (existingAttempt) {
@@ -113,7 +119,9 @@ export async function POST(request: Request) {
           ? { multiProjectResult: attemptToMultiProjectResult(existingAttempt, classSlug) }
           : isClass03Grade
             ? { class03Result: attemptToClass03Result(existingAttempt, classSlug) }
-            : { evaluation: attemptToEvaluationResult(existingAttempt, classSlug) }),
+            : isClass02aGrade
+              ? { class02aResult: attemptToClass02aResult(existingAttempt, classSlug) }
+              : { evaluation: attemptToEvaluationResult(existingAttempt, classSlug) }),
         weightedScore: existingAttempt.weightedScore,
         resultsTable,
         attemptHistory,
@@ -176,6 +184,31 @@ export async function POST(request: Request) {
       const attemptHistory = await getAttemptHistoryForStudent(owner, courseSlug);
 
       return NextResponse.json({ validation, class03Result: evaluation, weightedScore, resultsTable, attemptHistory });
+    }
+
+    if (isClass02aGrade) {
+      const evaluation = await evaluateClass02aAssignment({ owner, repo, tree, myWorkPath: myWorkPath! });
+      const weightedScore = evaluation.status === "success" ? (Math.min(evaluation.data.overallScore, evaluation.data.maxScore) / evaluation.data.maxScore) * 10 : null;
+
+      await insertAttempt({
+        studentId: student.id,
+        classId: classRow.id,
+        assignmentVersionId: assignmentVersion.id,
+        repoUrl,
+        commitSha,
+        status: evaluation.status,
+        weightedScore,
+        confidence: null,
+        structuredResult: evaluation.status === "success" ? evaluation.data : undefined,
+        errorMessage: evaluation.status === "error" ? evaluation.message : null,
+        promptVersion: PROMPT_VERSION,
+        modelName: modelNameForClass,
+      });
+
+      const resultsTable = await getResultsForStudent(owner, courseSlug);
+      const attemptHistory = await getAttemptHistoryForStudent(owner, courseSlug);
+
+      return NextResponse.json({ validation, class02aResult: evaluation, weightedScore, resultsTable, attemptHistory });
     }
 
     const gathered = await gatherClassFiles({ owner, repo, tree, classId: classSlug, myWorkPath: myWorkPath! });

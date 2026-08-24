@@ -4,12 +4,15 @@ import { MultiProjectResultCard } from "@/components/evaluator/multi-project-res
 import { MultiProjectExportButton } from "@/components/evaluator/multi-project-export-button";
 import { Class03ResultCard } from "@/components/evaluator/class-03-result-card";
 import { Class03ExportButton } from "@/components/evaluator/class-03-export-button";
+import { Class02aResultCard } from "@/components/evaluator/class-02a-result-card";
+import { Class02aExportButton } from "@/components/evaluator/class-02a-export-button";
 import { ValidationChecklist } from "@/components/evaluator/validation-checklist";
 import { ResultsTable } from "@/components/evaluator/results-table";
 import { AttemptHistoryTable } from "@/components/evaluator/attempt-history-table";
 import type {
   AssignmentEvaluationResult,
   AttemptHistoryRow,
+  Class02aEvaluationResult,
   Class03EvaluationResult,
   ClassFilesDto,
   MultiProjectEvaluationResult,
@@ -22,6 +25,7 @@ export function Dashboard({
   evaluation,
   multiProjectResult,
   class03Result,
+  class02aResult,
   weightedScore,
   classTitle,
   files,
@@ -32,6 +36,7 @@ export function Dashboard({
   evaluation?: AssignmentEvaluationResult;
   multiProjectResult?: MultiProjectEvaluationResult;
   class03Result?: Class03EvaluationResult;
+  class02aResult?: Class02aEvaluationResult;
   weightedScore: number | null;
   classTitle: string;
   files?: ClassFilesDto;
@@ -60,6 +65,16 @@ export function Dashboard({
             owner={validation.owner}
             repo={validation.repo}
             classSlug={class03Result.classId}
+          />
+        </>
+      ) : class02aResult ? (
+        <>
+          <Class02aResultCard evaluation={class02aResult} weightedScore={weightedScore} classTitle={classTitle} />
+          <Class02aExportButton
+            evaluation={class02aResult}
+            owner={validation.owner}
+            repo={validation.repo}
+            classSlug={class02aResult.classId}
           />
         </>
       ) : evaluation ? (

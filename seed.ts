@@ -37,6 +37,17 @@ const assignments: Record<string, SeedAssignment> = {
       "Time/space complexity discussed in comments or README",
     ],
   },
+  "class-02a": {
+    title: "Skills & Resources: WidgetWare Renewal Desk",
+    objective:
+      "Engineer the renewal-advisor Agent Skill's L1 metadata and L2 operating/safety contracts so an agent routes renewal queries deterministically to the exact L3 resource it needs — never loading more than the minimum, never guessing a discount route, calculation, or approval state. Full spec: my-work/class-02A/ASSIGNMENT.md.",
+    expectedDeliverables: [
+      "renewal_desk_agent/skills/renewal-advisor/SKILL.md with a complete L1 description (>=110 chars, no TODOs) naming discount/timing/risk/quote/brief discovery terms and a troubleshooting exclusion",
+      "SKILL.md's L2 body names all five exact L3 resource paths (references/discount-policy.md, references/renewal-process.md, references/risk-escalation.md, assets/renewal-brief-template.md, scripts/calculate_quote.py) and covers minimum-resource loading, missing-input handling, required citations, grounded refusal for unsupported questions, and the requested/routed/approved commercial state sequence",
+      "SUBMISSION.md (or submission.md) completed with no TODOs, at least 1800 characters, and Cases A-F each documenting an 'Observed L3:' resource trace",
+      "The provided pytest suite (tests/test_starter_integrity.py, tests/test_skill_contract.py) passing cleanly",
+    ],
+  },
   "class-03": {
     title: "Build the WidgetWare SDR Context Package",
     objective:
@@ -116,6 +127,7 @@ const assignments: Record<string, SeedAssignment> = {
 };
 
 const ALL_CLASS_IDS = Array.from({ length: 10 }, (_, i) => `class-${String(i + 1).padStart(2, "0")}`);
+ALL_CLASS_IDS.splice(ALL_CLASS_IDS.indexOf("class-02") + 1, 0, "class-02a");
 
 async function main() {
   let course = await getCourseBySlug("agent-engineering");

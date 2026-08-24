@@ -16,6 +16,7 @@ import { Separator } from "@/components/ui/separator";
 import type {
   AssignmentEvaluationResult,
   AttemptHistoryRow,
+  Class02aEvaluationResult,
   Class03EvaluationResult,
   ClassFilesDto,
   EvaluateResponse,
@@ -34,6 +35,7 @@ type EvaluatorState =
       evaluation?: AssignmentEvaluationResult;
       multiProjectResult?: MultiProjectEvaluationResult;
       class03Result?: Class03EvaluationResult;
+      class02aResult?: Class02aEvaluationResult;
       weightedScore: number | null;
       files?: ClassFilesDto;
       resultsTable: ResultsRow[];
@@ -79,7 +81,7 @@ export function EvaluatorApp() {
 
       const data = (await response.json()) as EvaluateResponse;
 
-      if (!data.validation.valid || (!data.evaluation && !data.multiProjectResult && !data.class03Result)) {
+      if (!data.validation.valid || (!data.evaluation && !data.multiProjectResult && !data.class03Result && !data.class02aResult)) {
         setState({ status: "invalid", validation: data.validation });
         return;
       }
@@ -90,6 +92,7 @@ export function EvaluatorApp() {
         evaluation: data.evaluation,
         multiProjectResult: data.multiProjectResult,
         class03Result: data.class03Result,
+        class02aResult: data.class02aResult,
         weightedScore: data.weightedScore ?? null,
         files: data.files,
         resultsTable: data.resultsTable ?? [],
@@ -178,6 +181,7 @@ export function EvaluatorApp() {
             evaluation={state.evaluation}
             multiProjectResult={state.multiProjectResult}
             class03Result={state.class03Result}
+            class02aResult={state.class02aResult}
             weightedScore={state.weightedScore}
             classTitle={state.classTitle}
             files={state.files}

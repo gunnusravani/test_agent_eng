@@ -173,6 +173,15 @@ export const attempts = pgTable(
           strengths: string[];
           improvements: string[];
         }
+      | {
+          // class-02a (see lib/graders/class-02a.ts) — entirely mechanical checks, no LLM
+          // components/bonus/strengths, so this member's shape is a flat check list instead.
+          checks: Array<{ name: string; passed: boolean; points: number; maxPoints: number; feedback: string }>;
+          overallScore: number;
+          maxScore: number;
+          pass: boolean;
+          summary: string;
+        }
     >(),
     errorMessage: text("error_message"),
     promptVersion: text("prompt_version").notNull(),

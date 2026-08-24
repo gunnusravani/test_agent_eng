@@ -121,10 +121,10 @@ export function hasMyWorkDirectory(tree: GitTreeItem[]): boolean {
   return Boolean(findMyWorkPath(tree));
 }
 
-/** Exact-path existence check for a single class folder — not tied to any particular slug naming convention. */
+/** Case-insensitive existence check for a single class folder — not tied to any particular slug naming convention. Case-insensitive because admin class slugs are lowercase-only while student repo folders vary (e.g. "class-02A"). */
 export function hasClassDirectory(tree: GitTreeItem[], myWorkPath: string, classSlug: string): boolean {
-  const path = `${myWorkPath}/${classSlug}`;
-  return tree.some((item) => item.type === "tree" && item.path === path);
+  const path = `${myWorkPath}/${classSlug}`.toLowerCase();
+  return tree.some((item) => item.type === "tree" && item.path.toLowerCase() === path);
 }
 
 /** Resolves a branch name to the commit SHA it currently points at, so evaluations record the exact commit graded. */
