@@ -174,13 +174,20 @@ export const attempts = pgTable(
           improvements: string[];
         }
       | {
-          // class-02a (see lib/graders/class-02a.ts) — entirely mechanical checks, no LLM
-          // components/bonus/strengths, so this member's shape is a flat check list instead.
-          checks: Array<{ name: string; passed: boolean; points: number; maxPoints: number; feedback: string }>;
+          // class-02a (see lib/graders/class-02a.ts) — same hybrid pattern as class-03, except
+          // starterIntegrity is fully server-computed rather than LLM-scored (no ambiguity in
+          // pure file-existence/string facts).
+          l1Metadata: { score: number; maxScore: number; feedback: string };
+          l2Instructions: { score: number; maxScore: number; feedback: string };
+          caseTraces: { score: number; maxScore: number; feedback: string };
+          reflection: { score: number; maxScore: number; feedback: string };
+          starterIntegrity: { score: number; maxScore: number; feedback: string };
+          bonus: { score: number; features: string[] };
           overallScore: number;
-          maxScore: number;
           pass: boolean;
           summary: string;
+          strengths: string[];
+          improvements: string[];
         }
     >(),
     errorMessage: text("error_message"),

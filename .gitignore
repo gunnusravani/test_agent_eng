@@ -37,6 +37,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# instructor reference material (grading ground truth, not app source)
+/class-02A
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

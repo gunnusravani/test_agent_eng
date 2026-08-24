@@ -267,28 +267,54 @@ export type Class03EvaluationResult = z.infer<typeof class03EvaluationResultSche
 
 // ---------------------------------------------------------------------------
 // Class-02A grading (WidgetWare Renewal Desk skill authoring — see
-// lib/graders/class-02a.ts). Unlike class-02/class-03, this rubric is entirely
-// mechanical (TODO/length/keyword/path/file-existence checks against the repo tree)
-// with no code execution and no LLM call involved, so its result is a flat list of
-// scored checks rather than LLM-scored components.
+// lib/graders/class-02a.ts and the instructor's own class-02A/grader.py,
+// ASSIGNMENT.md, CASES.md). Same hybrid pattern as class-02/class-03: most
+// components are LLM-scored, grounded by deterministic evidence extracted from
+// the repo tree; starterIntegrity is the one component with no ambiguity (pure
+// file-existence/string facts), so it stays fully server-computed instead of
+// being asked of the LLM, same principle as maxScore/overallScore never being
+// LLM-authored.
 // ---------------------------------------------------------------------------
 
-export const class02aCheckSchema = z.object({
-  name: z.string(),
-  passed: z.boolean(),
-  points: z.number(),
-  maxPoints: z.number(),
-  feedback: z.string(),
-});
-
-export type Class02aCheck = z.infer<typeof class02aCheckSchema>;
-
-export const class02aResultSchema = z.object({
-  checks: z.array(class02aCheckSchema),
-  overallScore: z.number(),
-  maxScore: z.number(),
+// Passed directly to generateObject() as the target schema for the class-02a grader.
+// starterIntegrity/maxScore/overallScore are deliberately absent — starterIntegrity has no
+// judgment call at all (see above), and maxScore/overallScore are a fixed constant and a
+// server-computed sum. pass is an LLM holistic judgment, same as class-02/class-03 — not a
+// hard 100% bar (an earlier version required an exact score match, which was needlessly
+// stricter than every other class's grader).
+export const class02aEvaluationSchema = z.object({
+  l1Metadata: componentScoreSchema(15),
+  l2Instructions: componentScoreSchema(25),
+  caseTraces: componentScoreSchema(30),
+  reflection: componentScoreSchema(15),
+  bonus: z.object({
+    score: z.number().min(0).max(10),
+    features: z.array(z.string()),
+  }),
   pass: z.boolean(),
   summary: z.string(),
+  strengths: z.array(z.string()),
+  improvements: z.array(z.string()),
+});
+
+export type Class02aEvaluation = z.infer<typeof class02aEvaluationSchema>;
+
+/** The LLM's output enriched server-side with each component's maxScore, the fully-deterministic starterIntegrity component, and the computed overallScore/pass. */
+export const class02aResultSchema = z.object({
+  l1Metadata: scoredComponentResultSchema(),
+  l2Instructions: scoredComponentResultSchema(),
+  caseTraces: scoredComponentResultSchema(),
+  reflection: scoredComponentResultSchema(),
+  starterIntegrity: scoredComponentResultSchema(),
+  bonus: z.object({
+    score: z.number(),
+    features: z.array(z.string()),
+  }),
+  overallScore: z.number(),
+  pass: z.boolean(),
+  summary: z.string(),
+  strengths: z.array(z.string()),
+  improvements: z.array(z.string()),
 });
 
 export type Class02aResult = z.infer<typeof class02aResultSchema>;

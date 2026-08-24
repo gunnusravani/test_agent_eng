@@ -4,7 +4,7 @@ import { evaluateAssignment, MODEL_NAME } from "@/lib/evaluator";
 import { fetchRepository, findMyWorkPath, findReadme, getRepoTree, hasClassDirectory, parseGitHubUrl, resolveBranchSha } from "@/lib/github";
 import { gatherClassFiles } from "@/lib/parser";
 import { weightedAverage } from "@/lib/grades";
-import { PROMPT_VERSION } from "@/lib/prompts";
+import { getPromptVersionForClass } from "@/lib/prompt-versions";
 import { evaluateClass02Assignment, isMultiProjectClass } from "@/lib/graders/class-02";
 import { evaluateClass03Assignment, isClass03 } from "@/lib/graders/class-03";
 import { evaluateClass02aAssignment, isClass02a } from "@/lib/graders/class-02a";
@@ -39,10 +39,7 @@ export async function POST(request: Request) {
   const isMultiProject = isMultiProjectClass(classSlug);
   const isClass03Grade = isClass03(classSlug);
   const isClass02aGrade = isClass02a(classSlug);
-  // class-02a never calls an LLM, so it gets its own fixed cache key instead of the OpenAI
-  // model name — otherwise the idempotency lookup below (keyed in part on modelName) would
-  // never match a prior class-02a attempt and every resubmit would re-run the sandboxed pytest.
-  const modelNameForClass = isClass02aGrade ? "deterministic" : MODEL_NAME;
+  const promptVersion = getPromptVersionForClass(classSlug);
 
   const lookup = await getClassForEvaluation(courseSlug, classSlug);
   if (!lookup) {
@@ -106,8 +103,8 @@ export async function POST(request: Request) {
       classId: classRow.id,
       commitSha,
       assignmentVersionId: assignmentVersion.id,
-      promptVersion: PROMPT_VERSION,
-      modelName: modelNameForClass,
+      promptVersion,
+      modelName: MODEL_NAME,
     });
 
     if (existingAttempt) {
@@ -151,7 +148,7 @@ export async function POST(request: Request) {
         confidence: null,
         structuredResult: evaluation.status === "success" ? evaluation.data : undefined,
         errorMessage: evaluation.status === "error" ? evaluation.message : null,
-        promptVersion: PROMPT_VERSION,
+        promptVersion,
         modelName: MODEL_NAME,
       });
 
@@ -176,7 +173,7 @@ export async function POST(request: Request) {
         confidence: null,
         structuredResult: evaluation.status === "success" ? evaluation.data : undefined,
         errorMessage: evaluation.status === "error" ? evaluation.message : null,
-        promptVersion: PROMPT_VERSION,
+        promptVersion,
         modelName: MODEL_NAME,
       });
 
@@ -187,8 +184,8 @@ export async function POST(request: Request) {
     }
 
     if (isClass02aGrade) {
-      const evaluation = await evaluateClass02aAssignment({ owner, repo, tree, myWorkPath: myWorkPath! });
-      const weightedScore = evaluation.status === "success" ? (Math.min(evaluation.data.overallScore, evaluation.data.maxScore) / evaluation.data.maxScore) * 10 : null;
+      const evaluation = await evaluateClass02aAssignment({ assignment: assignmentConfig, owner, repo, tree, myWorkPath: myWorkPath! });
+      const weightedScore = evaluation.status === "success" ? Math.min(evaluation.data.overallScore, 100) / 10 : null;
 
       await insertAttempt({
         studentId: student.id,
@@ -201,8 +198,8 @@ export async function POST(request: Request) {
         confidence: null,
         structuredResult: evaluation.status === "success" ? evaluation.data : undefined,
         errorMessage: evaluation.status === "error" ? evaluation.message : null,
-        promptVersion: PROMPT_VERSION,
-        modelName: modelNameForClass,
+        promptVersion,
+        modelName: MODEL_NAME,
       });
 
       const resultsTable = await getResultsForStudent(owner, courseSlug);
@@ -231,7 +228,7 @@ export async function POST(request: Request) {
       confidence: evaluation.status === "success" ? evaluation.data.confidence : null,
       feedbackJson: evaluation.status === "success" ? evaluation.data.feedback : undefined,
       errorMessage: evaluation.status === "error" ? evaluation.message : null,
-      promptVersion: PROMPT_VERSION,
+      promptVersion,
       modelName: MODEL_NAME,
     });
 

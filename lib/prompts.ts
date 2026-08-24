@@ -1,7 +1,7 @@
 import type { AssignmentConfig, GatheredClass } from "@/types";
 
-/** Bump manually whenever SYSTEM_PROMPT or buildEvaluationPrompt change materially — stored on every attempt for reproducibility. */
-export const PROMPT_VERSION = "v4";
+// Cache-dedup versioning lives per-class in lib/prompt-versions.ts, not here — bump the relevant
+// class's entry there whenever SYSTEM_PROMPT or buildEvaluationPrompt change materially.
 
 export const SYSTEM_PROMPT = `You are an experienced, fair, and detail-oriented programming instructor grading a student's class assignment submission.
 

@@ -1,8 +1,19 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { gradeColor, scoreToGrade } from "@/lib/grades";
-import type { Class02aEvaluationResult } from "@/types/schemas";
-import { CheckCircle2Icon, XCircleIcon } from "lucide-react";
+import type { Class02aEvaluationResult, Class02aResult } from "@/types/schemas";
+
+const COMPONENT_LABELS: Array<{
+  key: "l1Metadata" | "l2Instructions" | "caseTraces" | "reflection" | "starterIntegrity";
+  label: string;
+}> = [
+  { key: "l1Metadata", label: "L1 Metadata" },
+  { key: "l2Instructions", label: "L2 Instructions" },
+  { key: "caseTraces", label: "Case Traces (A–F)" },
+  { key: "reflection", label: "Reflection" },
+  { key: "starterIntegrity", label: "Starter Integrity" },
+];
 
 export function Class02aResultCard({
   evaluation,
@@ -29,36 +40,59 @@ export function Class02aResultCard({
           <>
             <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
               <span>
-                Overall: <span className="font-medium text-foreground">{evaluation.data.overallScore}</span> / {evaluation.data.maxScore}
+                Overall: <span className="font-medium text-foreground">{evaluation.data.overallScore}</span> / 100
+                {evaluation.data.bonus.score > 0 ? ` (+${evaluation.data.bonus.score} bonus)` : ""}
               </span>
+              <Badge variant={evaluation.data.pass ? "default" : "destructive"}>{evaluation.data.pass ? "Pass" : "Not Passing"}</Badge>
             </div>
 
             <p className="text-sm">{evaluation.data.summary}</p>
 
-            <div className="space-y-1.5">
-              {evaluation.data.checks.map((c) => (
-                <div key={c.name} className="flex items-start gap-2 rounded-lg border p-2.5 text-sm">
-                  {c.passed ? (
-                    <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                  ) : (
-                    <XCircleIcon className="mt-0.5 size-4 shrink-0 text-red-600 dark:text-red-400" />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="font-medium">{c.name}</span>
-                      <span className="shrink-0 tabular-nums text-muted-foreground">
-                        {c.points} / {c.maxPoints}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{c.feedback}</p>
-                  </div>
-                </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {COMPONENT_LABELS.map(({ key, label }) => (
+                <ComponentScore key={key} label={label} component={evaluation.data[key]} />
               ))}
+            </div>
+
+            {evaluation.data.bonus.features.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-sm font-medium">Bonus Features ({evaluation.data.bonus.score} pts)</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {evaluation.data.bonus.features.map((feature) => (
+                    <Badge key={feature} variant="secondary">
+                      {feature}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div className="text-sm font-medium">Strengths & Improvements</div>
+              <div className="space-y-3 text-sm">
+                <FeedbackList title="Strengths" items={evaluation.data.strengths} />
+                <FeedbackList title="Improvements" items={evaluation.data.improvements} />
+              </div>
             </div>
           </>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function ComponentScore({ label, component }: { label: string; component: Class02aResult["l1Metadata"] }) {
+  return (
+    <div className="space-y-1.5 rounded-lg border p-3">
+      <div className="flex items-baseline justify-between text-sm">
+        <span className="font-medium">{label}</span>
+        <span className="tabular-nums text-muted-foreground">
+          {component.score} / {component.maxScore}
+        </span>
+      </div>
+      <Progress value={(component.score / component.maxScore) * 100} />
+      <p className="text-xs text-muted-foreground">{component.feedback}</p>
+    </div>
   );
 }
 
@@ -77,4 +111,18 @@ function StatusBadge({
   }
   const grade = scoreToGrade(weightedScore);
   return <span className={`text-2xl font-semibold ${gradeColor(grade)}`}>{grade}</span>;
+}
+
+function FeedbackList({ title, items }: { title: string; items: string[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div>
+      <div className="font-medium">{title}</div>
+      <ul className="list-disc pl-4 text-muted-foreground">
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </div>
+  );
 }
