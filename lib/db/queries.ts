@@ -712,31 +712,52 @@ interface RegradeQueueQueryRow extends Record<string, unknown> {
 }
 
 /**
- * One row per (student, class) that has ever had an attempt against a currently-published class —
- * the worklist behind the admin's "Regrade All" button. repoUrl comes from each pair's most
- * recent attempt (including a last attempt that errored, since whatever failed before might be
- * fixed now) — this is deliberately the only source of "the student's repo URL", there is no
- * separate canonical field for it. Archived classes are excluded via the status filter, same as
- * every other student-facing query in this file.
+ * One row per (student, published class) for every student who has ever submitted anything in
+ * that class's course — the worklist behind the admin's "Regrade All" button. This deliberately
+ * covers every class in that course's dropdown, not just classes the student has attempted
+ * before: a student might have added a new class folder to their repo without ever manually
+ * submitting it, and this is how those get picked up. repoUrl is each student's single most
+ * recent attempt within that course (any class, including an attempt that errored) — this is
+ * deliberately the only source of "the student's repo URL", there is no separate canonical field
+ * for it. The class-level check for whether that class's folder actually exists in the repo
+ * happens per-item inside /api/evaluate's normal validation, same as a manual submission — a
+ * student who hasn't touched a given class simply gets a "no matching folder" skip there, not an
+ * error. Archived classes/courses are excluded via the status filter, same as every other
+ * student-facing query in this file.
  */
 export async function getRegradeQueue(): Promise<RegradeQueueItem[]> {
   const result = await db.execute<RegradeQueueQueryRow>(sql`
-    SELECT DISTINCT ON (a.student_id, a.class_id)
-      a.student_id,
+    WITH latest_repo_per_course AS (
+      SELECT DISTINCT ON (a.student_id, co.id)
+        a.student_id,
+        co.id AS course_id,
+        co.slug AS course_slug,
+        a.repo_url,
+        a.created_at AS last_attempt_at
+      FROM attempts a
+      JOIN classes c ON c.id = a.class_id
+      JOIN courses co ON co.id = c.course_id
+      ORDER BY a.student_id, co.id, a.created_at DESC
+    ),
+    published_classes AS (
+      SELECT c.id AS class_id, c.slug AS class_slug, c.title AS class_title, c.order_index, c.course_id
+      FROM classes c
+      JOIN courses co ON co.id = c.course_id
+      WHERE c.status = 'published' AND co.status = 'published'
+    )
+    SELECT
+      lr.student_id,
       s.github_username,
-      co.slug AS course_slug,
-      a.class_id,
-      c.slug AS class_slug,
-      c.title AS class_title,
-      c.order_index AS class_order_index,
-      a.repo_url,
-      a.created_at AS last_attempt_at
-    FROM attempts a
-    JOIN students s ON s.id = a.student_id
-    JOIN classes c ON c.id = a.class_id
-    JOIN courses co ON co.id = c.course_id
-    WHERE c.status = 'published' AND co.status = 'published'
-    ORDER BY a.student_id, a.class_id, a.created_at DESC
+      lr.course_slug,
+      pc.class_id,
+      pc.class_slug,
+      pc.class_title,
+      pc.order_index AS class_order_index,
+      lr.repo_url,
+      lr.last_attempt_at
+    FROM latest_repo_per_course lr
+    JOIN students s ON s.id = lr.student_id
+    JOIN published_classes pc ON pc.course_id = lr.course_id
   `);
 
   const sortedRows = [...result.rows].sort(

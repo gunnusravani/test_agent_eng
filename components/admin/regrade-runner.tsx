@@ -9,7 +9,7 @@ import type { RegradeQueueItem } from "@/types/schemas";
 
 const CONCURRENCY = 3;
 
-type ItemStatus = "queued" | "running" | "done" | "cached" | "error";
+type ItemStatus = "queued" | "running" | "done" | "cached" | "skipped" | "error";
 
 interface ItemResult {
   status: ItemStatus;
@@ -60,6 +60,7 @@ export function RegradeRunner() {
     return {
       done: values.filter((r) => r.status === "done").length,
       cached: values.filter((r) => r.status === "cached").length,
+      skipped: values.filter((r) => r.status === "skipped").length,
       error: values.filter((r) => r.status === "error").length,
       total: queue?.length ?? 0,
     };
@@ -92,9 +93,13 @@ export function RegradeRunner() {
           return;
         }
         if (!body?.validation?.valid) {
+          // Not an error — this student's repo simply doesn't have this particular class's
+          // folder (e.g. they've done class-01/02 but never touched class-03). Every possible
+          // validation.valid=false reason is exactly this "no matching folder" case, never a
+          // real failure, so it's reported as a skip rather than an error.
           setResults((prev) => ({
             ...prev,
-            [key]: { status: "error", message: body?.validation?.errors?.join(", ") ?? "No longer a valid submission." },
+            [key]: { status: "skipped", message: body?.validation?.errors?.join(", ") ?? "No matching class folder in this repo." },
           }));
           return;
         }
@@ -128,16 +133,17 @@ export function RegradeRunner() {
                       .join(" · ")}.`}
               </p>
               <p className="text-xs text-muted-foreground">
-                This re-checks every student&apos;s most recently known repo across all classes. Unchanged repos are skipped at no
-                cost (cache hit); only students with new commits since their last grade trigger a fresh LLM call.
+                This checks every student against every class in their course, not just ones they&apos;ve submitted before. A class
+                whose folder isn&apos;t in their repo is skipped, not treated as an error. Unchanged repos are graded from cache at no
+                cost; only students with new commits since their last grade trigger a fresh LLM call.
               </p>
               <Button onClick={handleRunAll} disabled={running || queue.length === 0}>
                 {running ? "Running…" : "Run All Graders"}
               </Button>
               {(running || Object.keys(results).length > 0) && (
                 <p className="text-sm text-muted-foreground">
-                  {summary.done + summary.cached + summary.error} / {summary.total} — {summary.done} fresh, {summary.cached} cached,{" "}
-                  {summary.error} errors
+                  {summary.done + summary.cached + summary.skipped + summary.error} / {summary.total} — {summary.done} fresh,{" "}
+                  {summary.cached} cached, {summary.skipped} skipped (no folder), {summary.error} errors
                 </p>
               )}
             </>
@@ -171,6 +177,8 @@ export function RegradeRunner() {
                         <td className="py-1.5">
                           {result?.status === "error" ? (
                             <span className="text-destructive">{result.message}</span>
+                          ) : result?.status === "skipped" ? (
+                            <span className="text-muted-foreground">{result.message}</span>
                           ) : result?.grade ? (
                             <span className={`font-medium ${gradeColor(result.grade as Parameters<typeof gradeColor>[0])}`}>
                               {result.grade}
@@ -197,5 +205,6 @@ function StatusBadge({ status }: { status?: ItemStatus }) {
   if (status === "running") return <Badge variant="secondary">Running…</Badge>;
   if (status === "done") return <Badge>Fresh grade</Badge>;
   if (status === "cached") return <Badge variant="outline">Unchanged</Badge>;
+  if (status === "skipped") return <Badge variant="outline">Skipped</Badge>;
   return <Badge variant="destructive">Error</Badge>;
 }
