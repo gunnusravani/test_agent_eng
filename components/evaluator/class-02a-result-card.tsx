@@ -40,8 +40,8 @@ export function Class02aResultCard({
           <>
             <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
               <span>
-                Overall: <span className="font-medium text-foreground">{evaluation.data.overallScore}</span> / 100
-                {evaluation.data.bonus.score > 0 ? ` (+${evaluation.data.bonus.score} bonus)` : ""}
+                Overall: <span className="font-medium text-foreground">{evaluation.data.overallScore - evaluation.data.bonus.score}</span> / 100
+                {evaluation.data.bonus.score > 0 ? ` (+${evaluation.data.bonus.score} bonus = ${evaluation.data.overallScore} total)` : ""}
               </span>
               <Badge variant={evaluation.data.pass ? "default" : "destructive"}>{evaluation.data.pass ? "Pass" : "Not Passing"}</Badge>
             </div>
