@@ -18,6 +18,11 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      // Instructor reference material (grading ground truth, not app source) — gitignored too,
+      // but ESLint doesn't read .gitignore on its own, so it needs its own entry here.
+      "class-02A/**",
+      "class-02B/**",
+      "my-work/**",
     ],
   },
 ];

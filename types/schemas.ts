@@ -339,25 +339,26 @@ export type Class02aEvaluationResult = z.infer<typeof class02aEvaluationResultSc
 // ---------------------------------------------------------------------------
 // Class-02B grading (ADK multi-agent workflows — delegation, shared state,
 // sequential/loop/parallel composition — see lib/graders/class-02b.ts). Unlike
-// class-02A, there is no instructor-supplied grader/rubric for this class — the
-// point structure here was designed from the build guide's own milestones and
-// "Quick validation checklist", not lifted from an authoritative source. Same
-// hybrid pattern as the other specialized graders: LLM-scored components
-// grounded by deterministic evidence (diffed against the known starter code).
-// Unlike class-02a, every component here is LLM-scored — there's no separable
-// fully-deterministic component, since the structural facts (sub_agents wiring,
-// LoopAgent/ParallelAgent presence) are the graded content itself, not scaffolding.
+// class-02A, there is no instructor-supplied grader/rubric, SKILL.md, or
+// SUBMISSION.md for this class — nothing in the build guide asks students to
+// submit a written account, every checkpoint is meant for interactive
+// self-verification via `adk run`/`adk web`. So grading is entirely code-based:
+// the two agent.py files, diffed against the known starter, are the only real
+// deliverable. Same hybrid pattern as the other specialized graders (LLM-scored
+// components grounded by deterministic evidence) but every component maps
+// directly to one of the guide's own "add X" milestones (2, 3, 5, 6) — the two
+// "run and observe existing behavior" milestones (1, 4) aren't separately
+// scored since students don't change anything for those.
 // ---------------------------------------------------------------------------
 
 // Passed directly to generateObject() as the target schema for the class-02b grader.
 // maxScore/overallScore are deliberately absent — a fixed constant and a server-computed
 // sum. pass is an LLM holistic judgment, same as every other specialized grader.
 export const class02bEvaluationSchema = z.object({
-  delegationAndState: componentScoreSchema(20),
-  loopWorkflow: componentScoreSchema(25),
-  parallelWorkflow: componentScoreSchema(25),
-  testingEvidence: componentScoreSchema(20),
-  reflection: componentScoreSchema(10),
+  delegationRouting: componentScoreSchema(20),
+  sharedState: componentScoreSchema(15),
+  loopWorkflow: componentScoreSchema(30),
+  parallelWorkflow: componentScoreSchema(35),
   bonus: z.object({
     score: z.number().min(0).max(10),
     features: z.array(z.string()),
@@ -372,11 +373,10 @@ export type Class02bEvaluation = z.infer<typeof class02bEvaluationSchema>;
 
 /** The LLM's output enriched server-side with each component's maxScore and the computed overallScore. */
 export const class02bResultSchema = z.object({
-  delegationAndState: scoredComponentResultSchema(),
+  delegationRouting: scoredComponentResultSchema(),
+  sharedState: scoredComponentResultSchema(),
   loopWorkflow: scoredComponentResultSchema(),
   parallelWorkflow: scoredComponentResultSchema(),
-  testingEvidence: scoredComponentResultSchema(),
-  reflection: scoredComponentResultSchema(),
   bonus: z.object({
     score: z.number(),
     features: z.array(z.string()),

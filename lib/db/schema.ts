@@ -190,13 +190,14 @@ export const attempts = pgTable(
           improvements: string[];
         }
       | {
-          // class-02b (see lib/graders/class-02b.ts) — same hybrid pattern, but every
-          // component is LLM-scored (no separable fully-deterministic component here).
-          delegationAndState: { score: number; maxScore: number; feedback: string };
+          // class-02b (see lib/graders/class-02b.ts) — grading is entirely code-based (no
+          // SUBMISSION.md/SKILL.md exists for this class), every component maps to one of
+          // the build guide's own "add X" milestones, LLM-scored, grounded by evidence
+          // diffed against the known starter code.
+          delegationRouting: { score: number; maxScore: number; feedback: string };
+          sharedState: { score: number; maxScore: number; feedback: string };
           loopWorkflow: { score: number; maxScore: number; feedback: string };
           parallelWorkflow: { score: number; maxScore: number; feedback: string };
-          testingEvidence: { score: number; maxScore: number; feedback: string };
-          reflection: { score: number; maxScore: number; feedback: string };
           bonus: { score: number; features: string[] };
           overallScore: number;
           pass: boolean;

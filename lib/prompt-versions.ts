@@ -9,7 +9,7 @@ const CLASS_PROMPT_VERSIONS: Record<string, string> = {
   "class-02": "v4",
   "class-03": "v4",
   "class-02a": "v2",
-  "class-02b": "v1",
+  "class-02b": "v2",
 };
 
 /** Any class not yet listed above (e.g. a brand-new class) gets its own isolated version, never colliding with an existing class's cached attempts. */

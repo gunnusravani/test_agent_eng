@@ -5,14 +5,13 @@ import { gradeColor, scoreToGrade } from "@/lib/grades";
 import type { Class02bEvaluationResult, Class02bResult } from "@/types/schemas";
 
 const COMPONENT_LABELS: Array<{
-  key: "delegationAndState" | "loopWorkflow" | "parallelWorkflow" | "testingEvidence" | "reflection";
+  key: "delegationRouting" | "sharedState" | "loopWorkflow" | "parallelWorkflow";
   label: string;
 }> = [
-  { key: "delegationAndState", label: "Delegation & State" },
+  { key: "delegationRouting", label: "Delegation Routing" },
+  { key: "sharedState", label: "Shared State" },
   { key: "loopWorkflow", label: "Loop Workflow" },
   { key: "parallelWorkflow", label: "Parallel Workflow" },
-  { key: "testingEvidence", label: "Testing Evidence" },
-  { key: "reflection", label: "Reflection" },
 ];
 
 export function Class02bResultCard({
@@ -81,7 +80,7 @@ export function Class02bResultCard({
   );
 }
 
-function ComponentScore({ label, component }: { label: string; component: Class02bResult["delegationAndState"] }) {
+function ComponentScore({ label, component }: { label: string; component: Class02bResult["delegationRouting"] }) {
   return (
     <div className="space-y-1.5 rounded-lg border p-3">
       <div className="flex items-baseline justify-between text-sm">
