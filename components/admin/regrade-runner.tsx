@@ -8,6 +8,10 @@ import { gradeColor, scoreToGrade } from "@/lib/grades";
 import type { RegradeQueueItem } from "@/types/schemas";
 
 const CONCURRENCY = 3;
+const ALL_CLASSES = "__all__";
+
+const fieldClass =
+  "h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30";
 
 type ItemStatus = "queued" | "running" | "done" | "cached" | "skipped" | "error";
 
@@ -36,6 +40,7 @@ export function RegradeRunner() {
   const [queue, setQueue] = useState<RegradeQueueItem[] | null>(null);
   const [results, setResults] = useState<Record<string, ItemResult>>({});
   const [running, setRunning] = useState(false);
+  const [selectedClass, setSelectedClass] = useState(ALL_CLASSES);
 
   useEffect(() => {
     fetch("/api/admin/regrade-queue")
@@ -44,34 +49,43 @@ export function RegradeRunner() {
       .catch(() => setQueue([]));
   }, []);
 
-  const countsByClass = useMemo(() => {
+  const classesInQueue = useMemo(() => {
     if (!queue) return [];
-    const counts = new Map<string, { classTitle: string; count: number }>();
+    const seen = new Map<string, { classTitle: string; count: number }>();
     for (const item of queue) {
-      const existing = counts.get(item.classSlug);
+      const existing = seen.get(item.classSlug);
       if (existing) existing.count += 1;
-      else counts.set(item.classSlug, { classTitle: item.classTitle, count: 1 });
+      else seen.set(item.classSlug, { classTitle: item.classTitle, count: 1 });
     }
-    return [...counts.entries()].map(([classSlug, v]) => ({ classSlug, ...v }));
+    return [...seen.entries()].map(([classSlug, v]) => ({ classSlug, ...v }));
   }, [queue]);
 
+  const filteredQueue = useMemo(() => {
+    if (!queue) return [];
+    return selectedClass === ALL_CLASSES ? queue : queue.filter((item) => item.classSlug === selectedClass);
+  }, [queue, selectedClass]);
+
+  const selectedClassTitle = classesInQueue.find((c) => c.classSlug === selectedClass)?.classTitle;
+
   const summary = useMemo(() => {
-    const values = Object.values(results);
+    const values = filteredQueue.map((item) => results[itemKey(item)]).filter((r): r is ItemResult => Boolean(r));
     return {
       done: values.filter((r) => r.status === "done").length,
       cached: values.filter((r) => r.status === "cached").length,
       skipped: values.filter((r) => r.status === "skipped").length,
       error: values.filter((r) => r.status === "error").length,
-      total: queue?.length ?? 0,
+      total: filteredQueue.length,
     };
-  }, [results, queue]);
+  }, [results, filteredQueue]);
 
-  async function handleRunAll() {
-    if (!queue || queue.length === 0) return;
+  const hasRunAnyInFilter = filteredQueue.some((item) => results[itemKey(item)]);
+
+  async function handleRun() {
+    if (filteredQueue.length === 0) return;
     setRunning(true);
-    setResults(Object.fromEntries(queue.map((item) => [itemKey(item), { status: "queued" as const }])));
+    setResults((prev) => ({ ...prev, ...Object.fromEntries(filteredQueue.map((item) => [itemKey(item), { status: "queued" as const }])) }));
 
-    await runWithConcurrency(queue, CONCURRENCY, async (item) => {
+    await runWithConcurrency(filteredQueue, CONCURRENCY, async (item) => {
       const key = itemKey(item);
       setResults((prev) => ({ ...prev, [key]: { status: "running" } }));
 
@@ -128,7 +142,7 @@ export function RegradeRunner() {
               <p className="text-sm text-muted-foreground">
                 {queue.length === 0
                   ? "No students have submitted anything yet."
-                  : `${queue.length} submission${queue.length === 1 ? "" : "s"} to check — ${countsByClass
+                  : `${queue.length} submission${queue.length === 1 ? "" : "s"} to check — ${classesInQueue
                       .map((c) => `${c.classSlug}: ${c.count}`)
                       .join(" · ")}.`}
               </p>
@@ -137,10 +151,38 @@ export function RegradeRunner() {
                 whose folder isn&apos;t in their repo is skipped, not treated as an error. Unchanged repos are graded from cache at no
                 cost; only students with new commits since their last grade trigger a fresh LLM call.
               </p>
-              <Button onClick={handleRunAll} disabled={running || queue.length === 0}>
-                {running ? "Running…" : "Run All Graders"}
-              </Button>
-              {(running || Object.keys(results).length > 0) && (
+
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-muted-foreground" htmlFor="regrade-class-select">
+                    Class
+                  </label>
+                  <select
+                    id="regrade-class-select"
+                    className={fieldClass}
+                    value={selectedClass}
+                    disabled={running}
+                    onChange={(e) => setSelectedClass(e.target.value)}
+                  >
+                    <option value={ALL_CLASSES}>All classes</option>
+                    {classesInQueue.map((c) => (
+                      <option key={c.classSlug} value={c.classSlug}>
+                        {c.classSlug} ({c.count})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <Button onClick={handleRun} disabled={running || filteredQueue.length === 0}>
+                  {running
+                    ? "Running…"
+                    : selectedClass === ALL_CLASSES
+                      ? "Run All Graders"
+                      : `Regrade ${selectedClassTitle ?? selectedClass} for everyone`}
+                </Button>
+              </div>
+
+              {(running || hasRunAnyInFilter) && (
                 <p className="text-sm text-muted-foreground">
                   {summary.done + summary.cached + summary.skipped + summary.error} / {summary.total} — {summary.done} fresh,{" "}
                   {summary.cached} cached, {summary.skipped} skipped (no folder), {summary.error} errors
@@ -151,7 +193,7 @@ export function RegradeRunner() {
         </CardContent>
       </Card>
 
-      {queue && queue.length > 0 && Object.keys(results).length > 0 && (
+      {filteredQueue.length > 0 && hasRunAnyInFilter && (
         <Card>
           <CardContent className="pt-6">
             <div className="overflow-x-auto">
@@ -165,7 +207,7 @@ export function RegradeRunner() {
                   </tr>
                 </thead>
                 <tbody>
-                  {queue.map((item) => {
+                  {filteredQueue.map((item) => {
                     const result = results[itemKey(item)];
                     return (
                       <tr key={itemKey(item)} className="border-b last:border-0">
