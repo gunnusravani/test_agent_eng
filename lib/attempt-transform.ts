@@ -4,6 +4,8 @@ import type {
   AssignmentEvaluationResult,
   Class02aEvaluationResult,
   Class02aResult,
+  Class02bEvaluationResult,
+  Class02bResult,
   Class03EvaluationResult,
   Class03Result,
   MultiProjectEvaluationResult,
@@ -77,6 +79,20 @@ export function attemptToClass02aResult(attempt: Attempt, classSlug: string): Cl
     status: "success",
     classId: classSlug,
     data: attempt.structuredResult! as Class02aResult,
+    evaluatedAt: attempt.createdAt.toISOString(),
+    modelUsed: attempt.modelName,
+  };
+}
+
+/** Same idea as attemptToEvaluationResult, for class-02b (ADK multi-agent workflows grader). */
+export function attemptToClass02bResult(attempt: Attempt, classSlug: string): Class02bEvaluationResult {
+  if (attempt.status === "error") {
+    return { status: "error", classId: classSlug, message: attempt.errorMessage ?? "Unknown error" };
+  }
+  return {
+    status: "success",
+    classId: classSlug,
+    data: attempt.structuredResult! as Class02bResult,
     evaluatedAt: attempt.createdAt.toISOString(),
     modelUsed: attempt.modelName,
   };

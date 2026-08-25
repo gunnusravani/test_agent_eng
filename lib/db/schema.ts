@@ -189,6 +189,21 @@ export const attempts = pgTable(
           strengths: string[];
           improvements: string[];
         }
+      | {
+          // class-02b (see lib/graders/class-02b.ts) — same hybrid pattern, but every
+          // component is LLM-scored (no separable fully-deterministic component here).
+          delegationAndState: { score: number; maxScore: number; feedback: string };
+          loopWorkflow: { score: number; maxScore: number; feedback: string };
+          parallelWorkflow: { score: number; maxScore: number; feedback: string };
+          testingEvidence: { score: number; maxScore: number; feedback: string };
+          reflection: { score: number; maxScore: number; feedback: string };
+          bonus: { score: number; features: string[] };
+          overallScore: number;
+          pass: boolean;
+          summary: string;
+          strengths: string[];
+          improvements: string[];
+        }
     >(),
     errorMessage: text("error_message"),
     promptVersion: text("prompt_version").notNull(),

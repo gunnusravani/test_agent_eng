@@ -39,6 +39,7 @@ yarn-error.log*
 
 # instructor reference material (grading ground truth, not app source)
 /class-02A
+/class-02B
 
 # typescript
 *.tsbuildinfo

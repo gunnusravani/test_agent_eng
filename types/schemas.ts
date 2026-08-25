@@ -336,6 +336,77 @@ export const class02aEvaluationResultSchema = z.discriminatedUnion("status", [
 
 export type Class02aEvaluationResult = z.infer<typeof class02aEvaluationResultSchema>;
 
+// ---------------------------------------------------------------------------
+// Class-02B grading (ADK multi-agent workflows — delegation, shared state,
+// sequential/loop/parallel composition — see lib/graders/class-02b.ts). Unlike
+// class-02A, there is no instructor-supplied grader/rubric for this class — the
+// point structure here was designed from the build guide's own milestones and
+// "Quick validation checklist", not lifted from an authoritative source. Same
+// hybrid pattern as the other specialized graders: LLM-scored components
+// grounded by deterministic evidence (diffed against the known starter code).
+// Unlike class-02a, every component here is LLM-scored — there's no separable
+// fully-deterministic component, since the structural facts (sub_agents wiring,
+// LoopAgent/ParallelAgent presence) are the graded content itself, not scaffolding.
+// ---------------------------------------------------------------------------
+
+// Passed directly to generateObject() as the target schema for the class-02b grader.
+// maxScore/overallScore are deliberately absent — a fixed constant and a server-computed
+// sum. pass is an LLM holistic judgment, same as every other specialized grader.
+export const class02bEvaluationSchema = z.object({
+  delegationAndState: componentScoreSchema(20),
+  loopWorkflow: componentScoreSchema(25),
+  parallelWorkflow: componentScoreSchema(25),
+  testingEvidence: componentScoreSchema(20),
+  reflection: componentScoreSchema(10),
+  bonus: z.object({
+    score: z.number().min(0).max(10),
+    features: z.array(z.string()),
+  }),
+  pass: z.boolean(),
+  summary: z.string(),
+  strengths: z.array(z.string()),
+  improvements: z.array(z.string()),
+});
+
+export type Class02bEvaluation = z.infer<typeof class02bEvaluationSchema>;
+
+/** The LLM's output enriched server-side with each component's maxScore and the computed overallScore. */
+export const class02bResultSchema = z.object({
+  delegationAndState: scoredComponentResultSchema(),
+  loopWorkflow: scoredComponentResultSchema(),
+  parallelWorkflow: scoredComponentResultSchema(),
+  testingEvidence: scoredComponentResultSchema(),
+  reflection: scoredComponentResultSchema(),
+  bonus: z.object({
+    score: z.number(),
+    features: z.array(z.string()),
+  }),
+  overallScore: z.number(),
+  pass: z.boolean(),
+  summary: z.string(),
+  strengths: z.array(z.string()),
+  improvements: z.array(z.string()),
+});
+
+export type Class02bResult = z.infer<typeof class02bResultSchema>;
+
+export const class02bEvaluationResultSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("success"),
+    classId: z.string(),
+    data: class02bResultSchema,
+    evaluatedAt: z.string(),
+    modelUsed: z.string(),
+  }),
+  z.object({
+    status: z.literal("error"),
+    classId: z.string(),
+    message: z.string(),
+  }),
+]);
+
+export type Class02bEvaluationResult = z.infer<typeof class02bEvaluationResultSchema>;
+
 export const courseSchema = z.object({
   id: z.string(),
   slug: z.string(),
@@ -413,7 +484,9 @@ export const evaluateResponseSchema = z.object({
   class03Result: class03EvaluationResultSchema.optional(),
   /** Populated for class-02a (WidgetWare Renewal Desk skill grader); mutually exclusive with the other result fields. */
   class02aResult: class02aEvaluationResultSchema.optional(),
-  /** Derived from the rubric-weighted average of evaluation.data.scores (or overallScore/10 for multiProjectResult/class03Result/class02aResult) — the canonical score/grade. */
+  /** Populated for class-02b (ADK multi-agent workflows grader); mutually exclusive with the other result fields. */
+  class02bResult: class02bEvaluationResultSchema.optional(),
+  /** Derived from the rubric-weighted average of evaluation.data.scores (or overallScore/10 for multiProjectResult/class03Result/class02aResult/class02bResult) — the canonical score/grade. */
   weightedScore: z.number().nullable().optional(),
   files: classFilesSchema.optional(),
   resultsTable: z.array(resultsRowSchema).optional(),
@@ -625,6 +698,7 @@ export const attemptDetailResponseSchema = z.object({
   multiProjectResult: multiProjectEvaluationResultSchema.optional(),
   class03Result: class03EvaluationResultSchema.optional(),
   class02aResult: class02aEvaluationResultSchema.optional(),
+  class02bResult: class02bEvaluationResultSchema.optional(),
 });
 
 export type AttemptDetailResponse = z.infer<typeof attemptDetailResponseSchema>;

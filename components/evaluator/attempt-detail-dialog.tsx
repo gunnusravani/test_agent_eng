@@ -6,6 +6,7 @@ import { AssignmentCard } from "@/components/evaluator/assignment-card";
 import { MultiProjectResultCard } from "@/components/evaluator/multi-project-result-card";
 import { Class03ResultCard } from "@/components/evaluator/class-03-result-card";
 import { Class02aResultCard } from "@/components/evaluator/class-02a-result-card";
+import { Class02bResultCard } from "@/components/evaluator/class-02b-result-card";
 import type { AttemptDetailResponse } from "@/types/schemas";
 
 /** Fetches and renders the full stored evaluation for one past attempt — opened by clicking a row in AttemptHistoryTable. */
@@ -71,6 +72,8 @@ export function AttemptDetailDialog({
               <Class03ResultCard evaluation={detail.class03Result} weightedScore={detail.weightedScore} classTitle={detail.classTitle} />
             ) : detail.class02aResult ? (
               <Class02aResultCard evaluation={detail.class02aResult} weightedScore={detail.weightedScore} classTitle={detail.classTitle} />
+            ) : detail.class02bResult ? (
+              <Class02bResultCard evaluation={detail.class02bResult} weightedScore={detail.weightedScore} classTitle={detail.classTitle} />
             ) : detail.evaluation ? (
               <AssignmentCard evaluation={detail.evaluation} weightedScore={detail.weightedScore} classTitle={detail.classTitle} />
             ) : null}

@@ -8,7 +8,14 @@ import { getPromptVersionForClass } from "@/lib/prompt-versions";
 import { evaluateClass02Assignment, isMultiProjectClass } from "@/lib/graders/class-02";
 import { evaluateClass03Assignment, isClass03 } from "@/lib/graders/class-03";
 import { evaluateClass02aAssignment, isClass02a } from "@/lib/graders/class-02a";
-import { attemptToClass02aResult, attemptToClass03Result, attemptToEvaluationResult, attemptToMultiProjectResult } from "@/lib/attempt-transform";
+import { evaluateClass02bAssignment, isClass02b } from "@/lib/graders/class-02b";
+import {
+  attemptToClass02aResult,
+  attemptToClass02bResult,
+  attemptToClass03Result,
+  attemptToEvaluationResult,
+  attemptToMultiProjectResult,
+} from "@/lib/attempt-transform";
 import {
   findExistingAttempt,
   getAttemptHistoryForStudent,
@@ -39,6 +46,7 @@ export async function POST(request: Request) {
   const isMultiProject = isMultiProjectClass(classSlug);
   const isClass03Grade = isClass03(classSlug);
   const isClass02aGrade = isClass02a(classSlug);
+  const isClass02bGrade = isClass02b(classSlug);
   const promptVersion = getPromptVersionForClass(classSlug);
 
   const lookup = await getClassForEvaluation(courseSlug, classSlug);
@@ -118,7 +126,9 @@ export async function POST(request: Request) {
             ? { class03Result: attemptToClass03Result(existingAttempt, classSlug) }
             : isClass02aGrade
               ? { class02aResult: attemptToClass02aResult(existingAttempt, classSlug) }
-              : { evaluation: attemptToEvaluationResult(existingAttempt, classSlug) }),
+              : isClass02bGrade
+                ? { class02bResult: attemptToClass02bResult(existingAttempt, classSlug) }
+                : { evaluation: attemptToEvaluationResult(existingAttempt, classSlug) }),
         weightedScore: existingAttempt.weightedScore,
         resultsTable,
         attemptHistory,
@@ -206,6 +216,31 @@ export async function POST(request: Request) {
       const attemptHistory = await getAttemptHistoryForStudent(owner, courseSlug);
 
       return NextResponse.json({ validation, class02aResult: evaluation, weightedScore, resultsTable, attemptHistory });
+    }
+
+    if (isClass02bGrade) {
+      const evaluation = await evaluateClass02bAssignment({ assignment: assignmentConfig, owner, repo, tree, myWorkPath: myWorkPath! });
+      const weightedScore = evaluation.status === "success" ? Math.min(evaluation.data.overallScore, 100) / 10 : null;
+
+      await insertAttempt({
+        studentId: student.id,
+        classId: classRow.id,
+        assignmentVersionId: assignmentVersion.id,
+        repoUrl,
+        commitSha,
+        status: evaluation.status,
+        weightedScore,
+        confidence: null,
+        structuredResult: evaluation.status === "success" ? evaluation.data : undefined,
+        errorMessage: evaluation.status === "error" ? evaluation.message : null,
+        promptVersion,
+        modelName: MODEL_NAME,
+      });
+
+      const resultsTable = await getResultsForStudent(owner, courseSlug);
+      const attemptHistory = await getAttemptHistoryForStudent(owner, courseSlug);
+
+      return NextResponse.json({ validation, class02bResult: evaluation, weightedScore, resultsTable, attemptHistory });
     }
 
     const gathered = await gatherClassFiles({ owner, repo, tree, classId: classSlug, myWorkPath: myWorkPath! });

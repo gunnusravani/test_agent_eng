@@ -6,6 +6,8 @@ import { Class03ResultCard } from "@/components/evaluator/class-03-result-card";
 import { Class03ExportButton } from "@/components/evaluator/class-03-export-button";
 import { Class02aResultCard } from "@/components/evaluator/class-02a-result-card";
 import { Class02aExportButton } from "@/components/evaluator/class-02a-export-button";
+import { Class02bResultCard } from "@/components/evaluator/class-02b-result-card";
+import { Class02bExportButton } from "@/components/evaluator/class-02b-export-button";
 import { ValidationChecklist } from "@/components/evaluator/validation-checklist";
 import { ResultsTable } from "@/components/evaluator/results-table";
 import { AttemptHistoryTable } from "@/components/evaluator/attempt-history-table";
@@ -13,6 +15,7 @@ import type {
   AssignmentEvaluationResult,
   AttemptHistoryRow,
   Class02aEvaluationResult,
+  Class02bEvaluationResult,
   Class03EvaluationResult,
   ClassFilesDto,
   MultiProjectEvaluationResult,
@@ -26,6 +29,7 @@ export function Dashboard({
   multiProjectResult,
   class03Result,
   class02aResult,
+  class02bResult,
   weightedScore,
   classTitle,
   files,
@@ -37,6 +41,7 @@ export function Dashboard({
   multiProjectResult?: MultiProjectEvaluationResult;
   class03Result?: Class03EvaluationResult;
   class02aResult?: Class02aEvaluationResult;
+  class02bResult?: Class02bEvaluationResult;
   weightedScore: number | null;
   classTitle: string;
   files?: ClassFilesDto;
@@ -75,6 +80,16 @@ export function Dashboard({
             owner={validation.owner}
             repo={validation.repo}
             classSlug={class02aResult.classId}
+          />
+        </>
+      ) : class02bResult ? (
+        <>
+          <Class02bResultCard evaluation={class02bResult} weightedScore={weightedScore} classTitle={classTitle} />
+          <Class02bExportButton
+            evaluation={class02bResult}
+            owner={validation.owner}
+            repo={validation.repo}
+            classSlug={class02bResult.classId}
           />
         </>
       ) : evaluation ? (
